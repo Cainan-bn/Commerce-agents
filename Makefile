@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up down seed migrate lint test test-unit test-integration test-e2e eval load run
+.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run
 
 help: ## Lista os alvos disponiveis
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -61,6 +61,9 @@ lint: ## Roda ruff, format check, mypy --strict e import-linter
 	uv run ruff format --check .
 	uv run mypy --strict src
 	uv run lint-imports
+
+build: ## Constroi a imagem Docker da aplicacao
+	docker build -t commerce-agents:local .
 
 test: ## Roda a suite de testes
 	uv run pytest
