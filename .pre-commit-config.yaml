@@ -23,12 +23,13 @@ repos:
       - id: mypy
         entry: mypy --strict src
         pass_filenames: false
+        additional_dependencies: [pydantic>=2.0]
 
   - repo: local
     hooks:
       - id: import-linter
         name: import-linter
-        entry: lint-imports
+        entry: uv run lint-imports
         language: system
         pass_filenames: false
 
@@ -36,6 +37,7 @@ repos:
     rev: v1.5.0
     hooks:
       - id: detect-secrets
+        exclude: ^uv\.lock$
 
   - repo: https://github.com/commitizen-tools/commitizen
     rev: v3.31.0

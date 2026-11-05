@@ -21,6 +21,7 @@ setup: ## Instala dependencias do projeto e hooks de pre-commit
 	@if [ -f .pre-commit-config.yaml ] && command -v pre-commit >/dev/null 2>&1; then \
 		echo "[setup] pre-commit install"; \
 		pre-commit install; \
+		pre-commit install --hook-type commit-msg; \
 	else \
 		echo "[setup] pre-commit indisponivel; rode scripts/bootstrap_wsl2.sh"; \
 	fi
@@ -56,21 +57,13 @@ migrate: ## Aplica migracoes
 	@echo "[migrate] nao implementado nesta fase"
 
 lint: ## Roda ruff, format check, mypy --strict e import-linter
-	@if [ ! -f pyproject.toml ]; then \
-		echo "[lint] nao implementado nesta fase"; \
-	else \
-		uv run ruff check .; \
-		uv run ruff format --check .; \
-		uv run mypy --strict src; \
-		uv run lint-imports; \
-	fi
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run mypy --strict src
+	uv run lint-imports
 
 test: ## Roda a suite de testes
-	@if [ ! -f pyproject.toml ]; then \
-		echo "[test] nao implementado nesta fase"; \
-	else \
-		uv run pytest; \
-	fi
+	uv run pytest
 
 test-e2e: ## Roda testes end-to-end
 	@echo "[test-e2e] nao implementado nesta fase"
