@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up down seed migrate lint test test-e2e eval load run
+.PHONY: help doctor setup up down seed migrate lint test test-unit test-integration test-e2e eval load run
 
 help: ## Lista os alvos disponiveis
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -64,6 +64,18 @@ lint: ## Roda ruff, format check, mypy --strict e import-linter
 
 test: ## Roda a suite de testes
 	uv run pytest
+
+test-unit: ## Roda apenas os testes unitarios (gera coverage.xml)
+	uv run pytest tests/unit -m unit --cov-report=xml:coverage.xml --cov-report=term-missing
+
+test-integration: ## Roda testes de integracao (aceita suite vazia)
+	@status=0; \
+	uv run pytest tests/integration -m integration --no-cov || status=$$?; \
+	if [ $$status -eq 5 ]; then \
+		echo "[test-integration] nenhum teste de integracao nesta fase"; \
+		exit 0; \
+	fi; \
+	exit $$status
 
 test-e2e: ## Roda testes end-to-end
 	@echo "[test-e2e] nao implementado nesta fase"
