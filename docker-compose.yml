@@ -35,7 +35,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    # noeviction: recomendado pelo Langfuse para nao evictar jobs do BullMQ.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     ports:
       - "6379:6379"
     volumes:
@@ -155,9 +156,11 @@ services:
       start_period: 10s
 
   langfuse:
-    image: langfuse/langfuse:3
+    image: langfuse/langfuse:3.227.0
     restart: unless-stopped
     environment:
+      # Next.js escuta apenas no hostname por padrao; 0.0.0.0 libera healthcheck e host.
+      HOSTNAME: 0.0.0.0
       DATABASE_URL: postgresql://${POSTGRES_USER:-commerce}:${POSTGRES_PASSWORD:-dev-only-change-me}@postgres:5432/langfuse
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-dev-only-change-me}
@@ -170,7 +173,10 @@ services:
       CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
       CLICKHOUSE_DB: default
       CLICKHOUSE_CLUSTER_ENABLED: "false"
-      REDIS_CONNECTION_STRING: redis://redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      # Watchdog de socket do Langfuse gera falso positivo com BullMQ ocioso no WSL2.
+      REDIS_SOCKET_TIMEOUT_MS: "0"
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
       LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_S3_ACCESS_KEY_ID:-dev-only-change-me}
@@ -192,7 +198,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget -q --spider http://localhost:3000/api/public/health || exit 1",
+          "wget -q --spider http://$$(hostname):3000/api/public/health || exit 1",
         ]
       interval: 10s
       timeout: 5s
@@ -200,7 +206,7 @@ services:
       start_period: 60s
 
   langfuse-worker:
-    image: langfuse/langfuse-worker:3
+    image: langfuse/langfuse-worker:3.227.0
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-commerce}:${POSTGRES_PASSWORD:-dev-only-change-me}@postgres:5432/langfuse
@@ -215,7 +221,10 @@ services:
       CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
       CLICKHOUSE_DB: default
       CLICKHOUSE_CLUSTER_ENABLED: "false"
-      REDIS_CONNECTION_STRING: redis://redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      # Watchdog de socket do Langfuse gera falso positivo com BullMQ ocioso no WSL2.
+      REDIS_SOCKET_TIMEOUT_MS: "0"
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
       LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
       LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE_S3_ACCESS_KEY_ID:-dev-only-change-me}
@@ -232,7 +241,7 @@ services:
       s3mock:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:3030/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://$$(hostname):3030/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 18
