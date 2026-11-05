@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint e arquitetura
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar uv (com cache)
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sincronizar dependencias
+        run: uv sync --frozen
+
+      - name: Rodar lint
+        run: make lint
+
+  unit:
+    name: Testes unitarios
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar uv (com cache)
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sincronizar dependencias
+        run: uv sync --frozen
+
+      - name: Rodar testes unitarios
+        run: make test-unit
+
+      - name: Publicar relatorio de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: coverage.xml
+          if-no-files-found: warn
+
+  integration:
+    name: Testes de integracao
+    runs-on: ubuntu-latest
+    needs: unit
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar uv (com cache)
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sincronizar dependencias
+        run: uv sync --frozen
+
+      - name: Rodar testes de integracao
+        run: make test-integration
+
+  build:
+    name: Build da imagem
+    runs-on: ubuntu-latest
+    needs: integration
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Construir imagem Docker
+        run: make build

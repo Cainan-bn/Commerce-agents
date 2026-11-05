@@ -36,6 +36,27 @@ A loja perde vendas fora do horário comercial. O time humano gasta a maior part
 - Frontend elaborado. Existe apenas um painel mínimo de handoff.
 - Integração real com WhatsApp/Instagram. Os canais são simulados.
 
+## Como rodar (WSL2)
+
+Pré-requisitos: Windows com WSL2 (Ubuntu), Docker Desktop com integração WSL ativada e `gh` autenticado. O repositório deve ficar no filesystem Linux (nunca em `/mnt/c`).
+
+```bash
+git config --global core.autocrlf input
+bash scripts/bootstrap_wsl2.sh   # idempotente
+make doctor                      # confere toolchain, docker, gh e portas
+make setup && make up            # sobe postgres+pgvector, redis, redpanda, otel, jaeger, langfuse
+make lint && make test
+```
+
+A stack completa (com Langfuse v3 e ClickHouse) é pesada. Sugestão de `%UserProfile%\.wslconfig`:
+
+```ini
+[wsl2]
+memory=8GB
+processors=4
+swap=4GB
+```
+
 ## Arquitetura
 
 Clean Architecture com dependência `interfaces → infrastructure → application → domain`, imposta por import-linter no CI. Detalhes em [`docs/architecture/`](docs/architecture/) e decisões em [`docs/adr/`](docs/adr/).
