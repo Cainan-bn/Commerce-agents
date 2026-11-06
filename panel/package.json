@@ -1,0 +1,13 @@
+{
+  "name": "commerce-agents-panel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Painel de handoff (HTML/JS sem build), testes de componentes com node --test + jsdom",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "devDependencies": {
+    "jsdom": "24.1.3"
+  }
+}

@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run mock seed-db ingest-policies eval-rag
+.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run mock seed-db ingest-policies eval-rag test-panel
 
 SEED_OUT ?= data/seed
 
@@ -78,6 +78,9 @@ ingest-policies: ## Indexa data/policies no Postgres (idempotente; modelo de emb
 
 eval-rag: ## Mede recall@4 e MRR do RAG com o modelo real (marcador embeddings; fora do make test)
 	uv run pytest tests/quality -m embeddings --no-cov -s
+
+test-panel: ## Roda os testes de componentes do painel (node --test + jsdom)
+	cd panel && npm ci && node --test test/
 
 lint: ## Roda ruff, format check, mypy --strict e import-linter
 	uv run ruff check .
