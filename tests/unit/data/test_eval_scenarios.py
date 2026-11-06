@@ -14,10 +14,10 @@ SCENARIOS_DIR = REPO_ROOT / "data" / "eval_scenarios"
 SEED_DIR = REPO_ROOT / "data" / "seed"
 
 EXPECTED_COUNTS: dict[str, int] = {
-    "pedidos": 9,
+    "pedidos": 14,
     "catalogo": 7,
     "politicas": 8,
-    "pos_venda": 7,
+    "pos_venda": 8,
     "injection": 6,
     "ambiguo": 8,
     "handoff": 3,
@@ -57,7 +57,7 @@ def seed_index() -> dict[str, Any]:
 def test_scenario_counts_and_split(scenarios: list[EvalScenario]) -> None:
     by_category = Counter(scenario.category for scenario in scenarios)
 
-    assert len(scenarios) == 48
+    assert len(scenarios) == 54
     assert all(scenario.split == "dev" for scenario in scenarios)
     assert dict(by_category) == EXPECTED_COUNTS
     assert by_category["injection"] >= 6
