@@ -128,10 +128,8 @@ class _InvalidOutputError(Exception):
 
 
 def _current_text(state: GraphState) -> str:
-    for message in reversed(state.get("history", [])):
-        if message["role"] == "user":
-            return message["content"]
-    return ""
+    users = (m["content"] for m in reversed(state.get("history", [])) if m["role"] == "user")
+    return next(users, "")
 
 
 def _render_result(result: StrictModel | ToolError) -> str:
@@ -342,8 +340,6 @@ class _Nodes:
     async def finalize(self, state: GraphState) -> dict[str, Any]:
         if state.get("pending_action"):  # proposta: o summary vem do código, sem passar pelo LLM
             return self._finish(state, state["reply"], awaiting=True)
-        if state.get("handoff_reason"):
-            return {}
         citations = state.get("policy_citations", [])
         retrieved = set(state.get("retrieved_chunks", []))
         if state["active_agent"] == "politicas" and (
