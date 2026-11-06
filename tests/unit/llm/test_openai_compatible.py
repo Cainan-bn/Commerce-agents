@@ -215,18 +215,31 @@ async def test_chave_nunca_aparece_em_erro_repr_ou_logs(caplog: pytest.LogCaptur
     assert API_KEY not in caplog.text
 
 
-def test_build_provider_from_env_usa_padroes_e_exige_chave_e_modelo():
-    from commerce_agents.infrastructure.llm.openai_compatible import build_provider_from_env
+def test_build_provider_from_env_openai_compatible_exige_chave_e_modelo():
+    from commerce_agents.infrastructure.llm.openai_compatible import (
+        OpenAICompatibleProvider,
+        build_provider_from_env,
+    )
 
-    provider = build_provider_from_env({"LLM_API_KEY": API_KEY, "LLM_MODEL": "modelo-agente"})
+    provider = build_provider_from_env(
+        {"LLM_PROVIDER": "openai-compatible", "LLM_API_KEY": API_KEY, "LLM_MODEL": "modelo-agente"}
+    )
 
-    assert provider is not None
+    assert isinstance(provider, OpenAICompatibleProvider)
     with pytest.raises((ValueError, RuntimeError)) as no_key:
-        build_provider_from_env({"LLM_MODEL": "modelo-agente"})
+        build_provider_from_env({"LLM_PROVIDER": "openai-compatible", "LLM_MODEL": "modelo-agente"})
     assert "LLM_API_KEY" in str(no_key.value)
     with pytest.raises((ValueError, RuntimeError)) as no_model:
-        build_provider_from_env({"LLM_API_KEY": API_KEY})
+        build_provider_from_env({"LLM_PROVIDER": "openai-compatible", "LLM_API_KEY": API_KEY})
     assert "LLM_MODEL" in str(no_model.value)
+
+
+def test_provider_desconhecido_e_erro_claro():
+    from commerce_agents.infrastructure.llm.openai_compatible import build_provider_from_env
+
+    with pytest.raises((ValueError, RuntimeError)) as unknown:
+        build_provider_from_env({"LLM_PROVIDER": "fornecedor-x", "LLM_MODEL": "m"})
+    assert "LLM_PROVIDER" in str(unknown.value)
 
 
 def test_build_judge_provider_usa_llm_judge_model():
