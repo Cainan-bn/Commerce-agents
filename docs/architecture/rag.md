@@ -1,6 +1,6 @@
 # RAG de políticas — contrato (Fase 05)
 
-ADR 0005 (híbrido + RRF), ADR 0012 (embeddings). Corpus: `data/policies/*.md` (front matter `version`/`title`, seções `##`).
+ADR 0005 (híbrido + RRF), ADR 0012 (embeddings: `paraphrase-multilingual-MiniLM-L12-v2`, 384 dims). Corpus: `data/policies/*.md` (front matter `version`/`title`, seções `##`).
 
 ## Chunking (`application/rag/chunking.py`, puro, stdlib)
 - `chunk_document(document: str, text: str) -> list[Chunk]`: lê o front matter (`title` obrigatório, senão `ValueError`), divide por seções `##`; o `# título` inicial não vira chunk, mas o texto entre ele e a primeira `##` (introdução), se houver, vira o primeiro chunk com `section = "Introdução"`. Seção com mais de 900 caracteres é dividida por parágrafos (linha em branco), juntando parágrafos até 900; um parágrafo maior que 900 vira um chunk sozinho. Sem sobreposição. Ordem e texto preservados; nada de timestamp ou aleatoriedade.
