@@ -59,7 +59,7 @@ async def test_ferramenta_fora_da_allowlist_volta_ao_llm_como_not_allowed():
     assert "not_allowed" in " ".join(m.content for m in llm.calls[1])
 
 
-async def test_cancelamento_com_argumento_invalido_volta_ao_llm_como_erro():
+async def test_cancelamento_com_pedido_invalido_volta_ao_llm_como_erro():
     store = StoreStub({})
     llm = ScriptedLLM([_tool("cancel_order", {"order_id": "xx"}), _final("Qual o número?")])
     harness = _harness(llm, FakeRouter("cancel_order"), store)
@@ -67,7 +67,7 @@ async def test_cancelamento_com_argumento_invalido_volta_ao_llm_como_erro():
     state = await harness.turn("cancela")
 
     assert state.get("pending_action") is None
-    assert "invalid_argument" in " ".join(m.content for m in llm.calls[1])
+    assert "not_found" in " ".join(m.content for m in llm.calls[1])
 
 
 async def test_preferencias_do_cliente_entram_no_prompt_como_dado():

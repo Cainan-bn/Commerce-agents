@@ -24,7 +24,7 @@ _TRACKING_STATUSES = frozenset(
         OrderStatus.returned,
     }
 )
-_CANCELABLE_STATUSES = frozenset(
+CANCELABLE_STATUSES = frozenset(
     {OrderStatus.pending_payment, OrderStatus.paid, OrderStatus.processing}
 )
 
@@ -76,7 +76,7 @@ class Order:
     @property
     def is_cancelable(self) -> bool:
         """Indica se o pedido ainda pode ser cancelado."""
-        return self.status in _CANCELABLE_STATUSES
+        return self.status in CANCELABLE_STATUSES
 
     def with_tracking(self, code: str) -> Order:
         """Retorna uma nova instância com o código de rastreio preenchido."""

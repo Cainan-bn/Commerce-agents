@@ -21,6 +21,7 @@ from commerce_agents.application.agents.guards import (
     sanitize_reply,
     wrap_untrusted,
 )
+from commerce_agents.application.agents.preflight import preflight_irreversible
 from commerce_agents.application.agents.protocol import (
     ActionParseError,
     parse_agent_action,
@@ -205,6 +206,7 @@ class _Nodes:
             "intent": intent.value,
             "intent_confidence": confidence,
             "active_agent": agent,
+            "pending_action": None,  # chegar aqui significa que não há proposta pendente
         }
         if agent == "humano":
             update["handoff_reason"] = "cliente_pediu_atendente"
@@ -244,7 +246,7 @@ class _Nodes:
             if steps >= MAX_TOOL_STEPS:
                 return {"handoff_reason": "limite_de_passos", "token_budget_remaining": budget}
             steps += 1
-            proposal = await self._propose(state, allow_key, action)
+            proposal = await self._propose(state, allow_key, action, scoped)
             if isinstance(proposal, PendingAction):
                 return {
                     "pending_action": proposal.model_dump(mode="json"),
@@ -269,7 +271,7 @@ class _Nodes:
             ]
 
     async def _propose(
-        self, state: GraphState, allow_key: str, action: ToolCall
+        self, state: GraphState, allow_key: str, action: ToolCall, scoped: ToolInvoker
     ) -> PendingAction | ToolError | None:
         """`None`: leitura; `ToolError`: negada ou inválida; `PendingAction`: irreversível."""
         spec = TOOL_SPECS.get(action.tool)
@@ -279,6 +281,15 @@ class _Nodes:
             )
         if not spec.irreversible:
             return None
+        blocked = await preflight_irreversible(
+            scoped,
+            allow_key,
+            action.tool,
+            action.arguments,
+            conversation_id=state["conversation_id"],
+        )
+        if blocked is not None:
+            return blocked
         use_case = ProposeIrreversibleAction(
             self._deps.tokens, clock=self._deps.clock, new_key=self._deps.new_key
         )
