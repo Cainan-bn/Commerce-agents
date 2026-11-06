@@ -22,6 +22,7 @@ from mock_store.models import (
 RETURN_WINDOW = timedelta(days=7)
 FREE_SHIPPING_THRESHOLD_CENTS = 29900
 CANCELABLE_STATUSES = frozenset({"pending_payment", "paid", "processing"})
+REUSED_KEY_DETAIL = "idempotency key reutilizada com parâmetros diferentes"
 
 _CEP_REGIONS: dict[str, tuple[int, int]] = {
     "0": (1990, 2),
@@ -74,7 +75,7 @@ class MockStore:
         self.customers: dict[str, Customer] = {}
         self.orders: dict[str, Order] = {}
         self._variants_by_sku: dict[str, Variant] = {}
-        self._idempotency: dict[str, tuple[int, dict[str, Any]]] = {}
+        self._idempotency: dict[str, tuple[str, int, dict[str, Any]]] = {}
         self.reload()
 
     def reload(self) -> None:
@@ -177,9 +178,13 @@ class MockStore:
 
     def cancel(self, order_id: str, key: str, today: datetime) -> tuple[int, dict[str, Any]]:
         idem_key = f"cancel:{key}"
+        fingerprint = order_id
         cached = self._idempotency.get(idem_key)
         if cached is not None:
-            return cached
+            cached_fingerprint, cached_status, cached_body = cached
+            if cached_fingerprint != fingerprint:
+                return (422, {"detail": REUSED_KEY_DETAIL})
+            return (cached_status, cached_body)
 
         order = self.orders.get(order_id)
         result: tuple[int, dict[str, Any]]
@@ -194,16 +199,20 @@ class MockStore:
             ).model_dump(mode="json")
             result = (200, body)
 
-        self._idempotency[idem_key] = result
+        self._idempotency[idem_key] = (fingerprint, result[0], result[1])
         return result
 
     def create_return(
         self, request: ReturnCreateRequest, key: str, today: datetime
     ) -> tuple[int, dict[str, Any]]:
         idem_key = f"return:{key}"
+        fingerprint = f"{request.order_id}\x00{request.sku}\x00{request.reason}"
         cached = self._idempotency.get(idem_key)
         if cached is not None:
-            return cached
+            cached_fingerprint, cached_status, cached_body = cached
+            if cached_fingerprint != fingerprint:
+                return (422, {"detail": REUSED_KEY_DETAIL})
+            return (cached_status, cached_body)
 
         order = self.orders.get(request.order_id)
         result: tuple[int, dict[str, Any]]
@@ -235,5 +244,5 @@ class MockStore:
                 ).model_dump(mode="json")
                 result = (200, body)
 
-        self._idempotency[idem_key] = result
+        self._idempotency[idem_key] = (fingerprint, result[0], result[1])
         return result
