@@ -7,6 +7,7 @@ ActiveAgent = Literal["pedidos", "catalogo", "politicas", "pos_venda", "humano",
 
 class AgentState(TypedDict, total=False):
     conversation_id: str
+    message_id: str  # id do canal do turno corrente; chave de deduplicação
     customer_id: str  # vem do canal autenticado; NUNCA de argumento do LLM
     channel: str
     messages: list[dict[str, str]]  # role/content; conteúdo do cliente sempre tratado como dado
