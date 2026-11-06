@@ -410,14 +410,15 @@ async def test_mesmo_message_id_nao_chama_llm_de_novo_e_devolve_a_mesma_resposta
 
 async def test_orcamento_de_tokens_esgotado_faz_handoff_sem_llm():
     store = StoreStub({})
-    llm = ScriptedLLM([])
+    llm = ScriptedLLM([_final("Oi, tudo bem?")])
     harness = Harness(llm, FakeRouter("order_status"), store)
 
     await harness.turn("oi")
-    # budget zero: a próxima entrada chega sem orçamento
+    calls_after_first_turn = len(llm.calls)
+    # budget zero: a próxima entrada chega sem orçamento, então nenhuma nova chamada ao LLM
     await harness.graph.ainvoke(turn_input(CONV, CUSTOMER, "de novo", budget=0), config=CONFIG)
 
-    assert llm.calls == []
+    assert len(llm.calls) == calls_after_first_turn
     assert harness.handoffs()
 
 
@@ -427,6 +428,7 @@ async def test_orcamento_de_tokens_esgotado_faz_handoff_sem_llm():
 async def test_conversation_service_devolve_outbound_reply_com_confirmacao():
     from commerce_agents.application.dto.agents import OutboundReply
     from commerce_agents.application.dto.events import InboundMessageReceived
+    from commerce_agents.domain.conversation.channel import Channel
     from commerce_agents.infrastructure.agents.service import ConversationService
 
     store = StoreStub({"O000014": CUSTOMER})
@@ -436,7 +438,7 @@ async def test_conversation_service_devolve_outbound_reply_com_confirmacao():
     event = InboundMessageReceived(
         message_id="m-svc-1",
         conversation_id=CONV,
-        channel="web",
+        channel=Channel.WEB,
         customer_external_id="ext-1",
         text="quero cancelar o pedido O000014",
         received_at=harness.clock(),
