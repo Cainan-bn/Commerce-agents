@@ -36,3 +36,9 @@
 - Métricas: 565 testes, cobertura 99%; recall@4 = 1,0 / MRR = 0,81 (n=8, modelo real, pergunta do cliente); ingestão idempotente (59 chunks, 2ª rodada sem embeddings).
 - Riscos abertos: amostra pequena de avaliação; limiar denso global deixa vazar "cotação do dólar"; imagem maior por causa do onnxruntime.
 - Próxima fase: 06 — orquestrador LangGraph (supervisor + 4 especialistas, checkpoint Postgres).
+
+## Fase 06 — Orquestrador de agentes
+- Estado: concluída na branch `fase/06-orquestrador-agentes`; PR aberto, aguardando CI para merge.
+- Métricas: 687 testes, cobertura 99%; posse do pedido, pré-checagem, confirmação, citações e handoff decididos em código; checkpoint Postgres com retomada validada.
+- Riscos abertos: sem provider real de LLM; handler de políticas ainda não ligado ao executor; UX de confirmação pendente.
+- Próxima fase: 07 — canais (WhatsApp/Instagram/web) e handoff humano.
