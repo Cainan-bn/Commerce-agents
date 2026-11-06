@@ -9,7 +9,11 @@ description = "Sistema multi-agente de atendimento e vendas omnichannel (MVP)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+  "alembic>=1.14",
+  "asyncpg>=0.30",
+  "psycopg[binary]>=3.2",
   "pydantic>=2.0",
+  "sqlalchemy[asyncio]>=2.0",
 ]
 
 [dependency-groups]
