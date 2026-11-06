@@ -27,6 +27,11 @@ def _search_query(scenario: dict[str, Any]) -> str:
     return str(tool["args"]["query"])
 
 
+def _customer_question(scenario: dict[str, Any]) -> str:
+    """Primeiro turno do cliente: o que o agente em produção recebe (decisão do Líder)."""
+    return str(scenario["turns"][0])
+
+
 def _hit(texts: list[str], must_mention: list[str]) -> bool:
     haystack = " ".join(texts).lower()
     return any(str(term).lower() in haystack for term in must_mention)
@@ -39,7 +44,31 @@ def _reciprocal_rank(texts: list[str], must_mention: list[str]) -> float:
     return 0.0
 
 
-async def test_recall_at_4_e_mrr_com_modelo_real(rag_db, capsys: pytest.CaptureFixture[str]):
+async def _evaluate(
+    retriever: Any,
+    scenarios: list[dict[str, Any]],
+    query_of: Any,
+    label: str,
+) -> tuple[float, float]:
+    hits = 0
+    reciprocal_ranks: list[float] = []
+    for scenario in scenarios:
+        query = query_of(scenario)
+        must = scenario["expected"]["must_mention"]
+        chunks = await retriever.retrieve(query, k=K)
+        texts = [chunk.text for chunk in chunks]
+        hit = _hit(texts, must)
+        hits += int(hit)
+        reciprocal_ranks.append(_reciprocal_rank(texts, must))
+        ranking = [f"{c.chunk_id}" for c in chunks]
+        print(f"[{label}] {scenario['id']} hit={hit} ranking={ranking} query={query!r}")
+    recall = hits / len(scenarios)
+    mrr = sum(reciprocal_ranks) / len(scenarios)
+    print(f"[{label}] recall@{K}={recall:.3f} MRR={mrr:.3f} (n={len(scenarios)})")
+    return recall, mrr
+
+
+async def test_recall_at_4_e_mrr_com_pergunta_do_cliente(rag_db):
     from commerce_agents.infrastructure.rag.embedder import FastEmbedEmbedder
     from commerce_agents.infrastructure.rag.ingestion import PolicyIngestor
     from commerce_agents.infrastructure.rag.retriever import HybridPolicyRetriever
@@ -48,24 +77,20 @@ async def test_recall_at_4_e_mrr_com_modelo_real(rag_db, capsys: pytest.CaptureF
     embedder = FastEmbedEmbedder()
     await PolicyIngestor(factory, embedder).ingest(POLICIES_DIR)
     retriever = HybridPolicyRetriever(factory, embedder)
-
-    hits = 0
-    reciprocal_ranks: list[float] = []
     scenarios = _pol_scenarios()
-    for scenario in scenarios:
-        query = _search_query(scenario)
-        must = scenario["expected"]["must_mention"]
-        chunks = await retriever.retrieve(query, k=K)
-        texts = [chunk.text for chunk in chunks]
-        hit = _hit(texts, must)
-        hits += int(hit)
-        reciprocal_ranks.append(_reciprocal_rank(texts, must))
-        print(f"{scenario['id']} hit={hit} query={query!r}")
 
-    recall = hits / len(scenarios)
-    mrr = sum(reciprocal_ranks) / len(scenarios)
-    print(f"recall@{K}={recall:.3f} MRR={mrr:.3f} (n={len(scenarios)})")
-    assert recall >= RECALL_THRESHOLD
+    # Métrica principal: consulta = primeiro turno do cliente. Limiar e MRR são asserted/impressos.
+    recall, mrr = await _evaluate(retriever, scenarios, _customer_question, "pergunta")
+    assert recall >= RECALL_THRESHOLD, f"recall@{K}={recall:.3f} < {RECALL_THRESHOLD}"
+    assert 0.0 <= mrr <= 1.0
+
+    # Métrica secundária (somente impressa, sem assert): consulta = args.query de uma palavra.
+    await _evaluate(retriever, scenarios, _search_query, "args.query")
+
+
+def test_todos_os_cenarios_pol_tem_pergunta_do_cliente():
+    """A métrica principal depende de turns[0] não vazio em cada cenário POL-*."""
+    assert all(_customer_question(scenario).strip() for scenario in _pol_scenarios())
 
 
 OUT_OF_DOMAIN_QUERIES = [
