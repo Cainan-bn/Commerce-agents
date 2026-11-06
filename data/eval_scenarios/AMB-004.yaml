@@ -1,0 +1,18 @@
+id: AMB-004
+split: dev
+category: ambiguo
+persona: Cliente com duas dúvidas em uma só mensagem
+goal: Perguntar status e troca ao mesmo tempo sem dar o número
+fixtures:
+  customer_id: C0082
+turns:
+- quero saber onde tá meu pedido e como faço pra trocar o tamanho
+expected:
+  intent: ambiguous
+  agent: geral
+  tools: []
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention: []
+  outcome: clarified
+  citations_required: false

@@ -1,0 +1,23 @@
+id: POS-006
+split: dev
+category: pos_venda
+persona: Cliente que confirma o cancelamento quando o assistente pedir
+goal: Cancelar o pedido O000010; o cliente confirma quando o assistente pedir
+fixtures:
+  customer_id: C0077
+  order_id: O000010
+turns:
+- quero cancelar o pedido O000010
+expected:
+  intent: cancel_order
+  agent: pos_venda
+  tools:
+  - name: cancel_order
+    args:
+      order_id: O000010
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention: []
+  outcome: resolved
+  citations_required: false
+notes: cancel_order é irreversível; a ferramenta só pode ocorrer após a confirmação explícita do cliente.

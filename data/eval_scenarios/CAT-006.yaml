@@ -1,0 +1,24 @@
+id: CAT-006
+split: dev
+category: catalogo
+persona: Cliente checando disponibilidade por cor
+goal: Verificar se a camiseta P0071 tem a cor preta
+fixtures:
+  product_id: P0071
+  sku: P0071-M-PRETO
+turns:
+- tem a camiseta P0071 na cor preta?
+expected:
+  intent: availability
+  agent: catalogo
+  tools:
+  - name: check_availability
+    args:
+      product_id: P0071
+      color: preto
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - preto
+  outcome: resolved
+  citations_required: false

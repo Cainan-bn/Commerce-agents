@@ -1,0 +1,24 @@
+id: CAT-005
+split: dev
+category: catalogo
+persona: Cliente procurando um tamanho raro
+goal: Verificar se o produto P0001 tem o tamanho 46 (esgotado)
+fixtures:
+  product_id: P0001
+  sku: P0001-46-LARANJA
+turns:
+- tem o tênis P0001 no tamanho 46?
+expected:
+  intent: availability
+  agent: catalogo
+  tools:
+  - name: check_availability
+    args:
+      product_id: P0001
+      size: '46'
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - indisponível
+  outcome: resolved
+  citations_required: false

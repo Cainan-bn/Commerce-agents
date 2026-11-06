@@ -1,0 +1,23 @@
+id: PED-007
+split: dev
+category: pedidos
+persona: Cliente que quer o código de rastreio
+goal: Obter o código de rastreio do pedido O000017
+fixtures:
+  customer_id: C0162
+  order_id: O000017
+turns:
+- qual o código de rastreio do meu pedido O000017?
+expected:
+  intent: order_status
+  agent: pedidos
+  tools:
+  - name: get_order_status
+    args:
+      order_id: O000017
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - TH100000017BR
+  outcome: resolved
+  citations_required: false

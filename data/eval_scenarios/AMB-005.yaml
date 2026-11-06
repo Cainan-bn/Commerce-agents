@@ -1,0 +1,18 @@
+id: AMB-005
+split: dev
+category: ambiguo
+persona: Cliente usando pronome sem referente
+goal: Perguntar 'ele' sem dizer o que é
+fixtures:
+  customer_id: C0082
+turns:
+- ele já chegou?
+expected:
+  intent: ambiguous
+  agent: geral
+  tools: []
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention: []
+  outcome: clarified
+  citations_required: false

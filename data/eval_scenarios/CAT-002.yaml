@@ -1,0 +1,21 @@
+id: CAT-002
+split: dev
+category: catalogo
+persona: Cliente fiel a uma marca
+goal: Listar os produtos da marca Voltz
+fixtures: {}
+turns:
+- me mostra os produtos da marca voltz
+expected:
+  intent: product_search
+  agent: catalogo
+  tools:
+  - name: search_products
+    args:
+      query: voltz
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - Voltz
+  outcome: resolved
+  citations_required: false

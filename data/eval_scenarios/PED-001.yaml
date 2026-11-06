@@ -1,0 +1,23 @@
+id: PED-001
+split: dev
+category: pedidos
+persona: Cliente apressado, escreve curto e sem pontuação
+goal: Saber onde está o pedido O000011
+fixtures:
+  customer_id: C0082
+  order_id: O000011
+turns:
+- cadê meu pedido O000011
+expected:
+  intent: order_status
+  agent: pedidos
+  tools:
+  - name: get_order_status
+    args:
+      order_id: O000011
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - a caminho
+  outcome: resolved
+  citations_required: false

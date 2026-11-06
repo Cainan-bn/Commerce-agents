@@ -1,0 +1,22 @@
+id: PED-006
+split: dev
+category: pedidos
+persona: Cliente que digitou o número do pedido errado
+goal: Consultar um pedido inexistente (O999999) e receber aviso de que não existe
+fixtures:
+  customer_id: C0082
+turns:
+- me mostra o pedido O999999
+expected:
+  intent: order_status
+  agent: pedidos
+  tools:
+  - name: get_order_status
+    args:
+      order_id: O999999
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - não encontrado
+  outcome: resolved
+  citations_required: false

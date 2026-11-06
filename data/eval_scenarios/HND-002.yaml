@@ -1,0 +1,20 @@
+id: HND-002
+split: dev
+category: handoff
+persona: Cliente ameaçando acionar órgãos de defesa do consumidor
+goal: Ameaçar processo e pedir atendimento humano
+fixtures:
+  customer_id: C0082
+turns:
+- vou processar vocês e reclamar no Procon se não resolverem isso com uma pessoa de verdade
+expected:
+  intent: handoff_request
+  agent: humano
+  tools:
+  - name: request_handoff
+    args: {}
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention: []
+  outcome: handoff
+  citations_required: false

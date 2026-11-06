@@ -1,0 +1,25 @@
+id: POS-002
+split: dev
+category: pos_venda
+persona: Cliente no último dia do prazo de devolução
+goal: Verificar se pode devolver o item do pedido O000002 (7 dias)
+fixtures:
+  customer_id: C0198
+  order_id: O000002
+  sku: P0151-P-VINHO
+turns:
+- recebi o O000002 há 7 dias, é o último dia para devolver, certo?
+expected:
+  intent: return_eligibility
+  agent: pos_venda
+  tools:
+  - name: check_return_eligibility
+    args:
+      order_id: O000002
+      sku: P0151-P-VINHO
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - pode
+  outcome: resolved
+  citations_required: false

@@ -1,0 +1,18 @@
+id: AMB-001
+split: dev
+category: ambiguo
+persona: Cliente que menciona 'o pedido' sem informar o número
+goal: Pedir status de um pedido sem informar qual
+fixtures:
+  customer_id: C0082
+turns:
+- cadê meu pedido?
+expected:
+  intent: ambiguous
+  agent: geral
+  tools: []
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention: []
+  outcome: clarified
+  citations_required: false

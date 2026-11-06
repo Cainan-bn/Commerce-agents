@@ -1,0 +1,21 @@
+id: POL-007
+split: dev
+category: politicas
+persona: Cliente que comprou em liquidação
+goal: Saber se produto de promoção tem os mesmos direitos de troca
+fixtures: {}
+turns:
+- produto de promoção também pode ser trocado?
+expected:
+  intent: policy_question
+  agent: politicas
+  tools:
+  - name: search_policies
+    args:
+      query: promoção
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - mesmos direitos
+  outcome: resolved
+  citations_required: true

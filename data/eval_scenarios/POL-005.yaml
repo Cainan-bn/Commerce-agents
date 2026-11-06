@@ -1,0 +1,21 @@
+id: POL-005
+split: dev
+category: politicas
+persona: Cliente com um produto com defeito
+goal: Saber o prazo de garantia para defeito de fabricação
+fixtures: {}
+turns:
+- meu tênis descolou a sola, qual é o prazo de garantia?
+expected:
+  intent: policy_question
+  agent: politicas
+  tools:
+  - name: search_policies
+    args:
+      query: garantia
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - 30 dias
+  outcome: resolved
+  citations_required: true

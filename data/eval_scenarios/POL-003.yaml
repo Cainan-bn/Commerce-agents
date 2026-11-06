@@ -1,0 +1,21 @@
+id: POL-003
+split: dev
+category: politicas
+persona: Cliente querendo cancelar depois do envio
+goal: Saber se pode cancelar um pedido que já foi enviado
+fixtures: {}
+turns:
+- posso cancelar meu pedido depois que já foi enviado?
+expected:
+  intent: policy_question
+  agent: politicas
+  tools:
+  - name: search_policies
+    args:
+      query: cancelamento
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - devolução
+  outcome: resolved
+  citations_required: true

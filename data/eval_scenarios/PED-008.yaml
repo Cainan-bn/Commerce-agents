@@ -1,0 +1,23 @@
+id: PED-008
+split: dev
+category: pedidos
+persona: Cliente surpreso ao descobrir o pedido cancelado
+goal: Entender por que o pedido O000026 consta como cancelado
+fixtures:
+  customer_id: C0091
+  order_id: O000026
+turns:
+- meu pedido O000026 foi cancelado? por quê?
+expected:
+  intent: order_status
+  agent: pedidos
+  tools:
+  - name: get_order_status
+    args:
+      order_id: O000026
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - cancelado
+  outcome: resolved
+  citations_required: false

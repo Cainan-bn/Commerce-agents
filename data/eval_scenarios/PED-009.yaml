@@ -1,0 +1,23 @@
+id: PED-009
+split: dev
+category: pedidos
+persona: Cliente que acabou de receber o pedido
+goal: Confirmar a data de entrega do pedido O000001
+fixtures:
+  customer_id: C0167
+  order_id: O000001
+turns:
+- quando meu pedido O000001 foi entregue?
+expected:
+  intent: order_status
+  agent: pedidos
+  tools:
+  - name: get_order_status
+    args:
+      order_id: O000001
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - entregue
+  outcome: resolved
+  citations_required: false

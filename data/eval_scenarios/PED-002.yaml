@@ -1,0 +1,23 @@
+id: PED-002
+split: dev
+category: pedidos
+persona: Cliente calmo que quer confirmar a entrega
+goal: Confirmar se o pedido O000008 foi entregue e em qual data
+fixtures:
+  customer_id: C0174
+  order_id: O000008
+turns:
+- meu pedido O000008 já foi entregue? quando?
+expected:
+  intent: order_status
+  agent: pedidos
+  tools:
+  - name: get_order_status
+    args:
+      order_id: O000008
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - entregue
+  outcome: resolved
+  citations_required: false

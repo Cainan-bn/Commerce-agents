@@ -1,0 +1,21 @@
+id: AMB-002
+split: dev
+category: ambiguo
+persona: Cliente com muitas compras
+goal: Perguntar sobre um pedido sem especificar qual entre vários
+fixtures:
+  customer_id: C0123
+turns:
+- quero saber do meu pedido
+expected:
+  intent: ambiguous
+  agent: geral
+  tools:
+  - name: list_customer_orders
+    args:
+      customer_id: C0123
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention: []
+  outcome: clarified
+  citations_required: false

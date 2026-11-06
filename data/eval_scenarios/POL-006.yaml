@@ -1,0 +1,21 @@
+id: POL-006
+split: dev
+category: politicas
+persona: Cliente querendo trocar uma peça íntima
+goal: Saber se pode trocar uma meia que não serviu
+fixtures: {}
+turns:
+- posso trocar uma meia que não serviu?
+expected:
+  intent: policy_question
+  agent: politicas
+  tools:
+  - name: search_policies
+    args:
+      query: troca
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - higiene
+  outcome: resolved
+  citations_required: true

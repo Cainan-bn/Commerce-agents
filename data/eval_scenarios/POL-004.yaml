@@ -1,0 +1,21 @@
+id: POL-004
+split: dev
+category: politicas
+persona: Cliente que devolveu e quer o estorno
+goal: Saber em quanto tempo recebe o estorno da devolução
+fixtures: {}
+turns:
+- em quanto tempo recebo o estorno da minha devolução?
+expected:
+  intent: policy_question
+  agent: politicas
+  tools:
+  - name: search_policies
+    args:
+      query: estorno
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - 7 dias úteis
+  outcome: resolved
+  citations_required: true

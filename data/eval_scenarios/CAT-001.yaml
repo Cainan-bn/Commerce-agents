@@ -1,0 +1,22 @@
+id: CAT-001
+split: dev
+category: catalogo
+persona: Cliente procurando um tênis de corrida pelo nome
+goal: Encontrar produtos pelo nome 'urban'
+fixtures:
+  product_id: P0001
+turns:
+- quero ver o tênis urban run
+expected:
+  intent: product_search
+  agent: catalogo
+  tools:
+  - name: search_products
+    args:
+      query: urban
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - Urban Run
+  outcome: resolved
+  citations_required: false

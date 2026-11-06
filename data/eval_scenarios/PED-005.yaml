@@ -1,0 +1,23 @@
+id: PED-005
+split: dev
+category: pedidos
+persona: Cliente que já pediu devolução e quer acompanhar
+goal: Saber o status da devolução do pedido O000049
+fixtures:
+  customer_id: C0061
+  order_id: O000049
+turns:
+- como está minha devolução do pedido O000049?
+expected:
+  intent: order_status
+  agent: pedidos
+  tools:
+  - name: get_order_status
+    args:
+      order_id: O000049
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - devolução
+  outcome: resolved
+  citations_required: false

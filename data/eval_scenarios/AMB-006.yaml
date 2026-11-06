@@ -1,0 +1,18 @@
+id: AMB-006
+split: dev
+category: ambiguo
+persona: Cliente reclamando de atraso sem dar dados
+goal: Reclamar de atraso sem informar o número do pedido
+fixtures:
+  customer_id: C0082
+turns:
+- meu pedido tá muito atrasado, o que vocês vão fazer?
+expected:
+  intent: ambiguous
+  agent: geral
+  tools: []
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention: []
+  outcome: clarified
+  citations_required: false
