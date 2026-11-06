@@ -4,6 +4,8 @@ SHELL := bash
 .DEFAULT_GOAL := help
 .PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run mock
 
+SEED_OUT ?= data/seed
+
 help: ## Lista os alvos disponiveis
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -50,8 +52,11 @@ down: ## Derruba a stack local
 		echo "[down] docker-compose.yml ausente (TASK-01-03); nada a derrubar"; \
 	fi
 
-seed: ## Popula dados mock
-	@echo "[seed] nao implementado nesta fase"
+# A carga em PostgreSQL nao faz parte desta fase: as migrations da Fase 03
+# serao derivadas destes dados de seed.
+seed: ## Regenera data/seed e valida a carga pelo mock_store
+	uv run python -m data.generators --seed 42 --out "$(SEED_OUT)"
+	uv run python scripts/validate_seed.py "$(SEED_OUT)"
 
 migrate: ## Aplica migracoes
 	@echo "[migrate] nao implementado nesta fase"
