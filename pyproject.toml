@@ -70,12 +70,13 @@ files = ["src", "mock_store", "data"]
 minversion = "8.0"
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "-ra --strict-markers --strict-config --cov=commerce_agents --cov-branch --cov-report=term-missing"
+addopts = "-ra --strict-markers --strict-config --cov=commerce_agents --cov-branch --cov-report=term-missing -m \"not embeddings\""
 markers = [
   "unit: testes rápidos e isolados",
   "integration: testes com infraestrutura local",
   "contract: testes de contrato entre camadas/adapters",
   "e2e: testes de ponta a ponta",
+  "embeddings: carrega o modelo real de embeddings (fora do make test; make eval-rag)",
 ]
 
 [tool.coverage.run]
