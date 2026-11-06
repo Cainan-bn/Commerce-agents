@@ -8,7 +8,7 @@ from pathlib import Path
 
 from data.generators.catalog import generate_products
 from data.generators.customers import generate_customers
-from data.generators.orders import generate_orders
+from data.generators.orders import generate_orders, redate_recent_deliveries
 from data.generators.validation import validate_files
 
 DEFAULT_SEED = 42
@@ -28,6 +28,7 @@ def generate(seed: int, out_dir: Path) -> dict[str, int]:
     products = generate_products(random.Random(seed))
     customers = generate_customers(random.Random(seed + 1))
     orders = generate_orders(random.Random(seed + 2), products, customers)
+    orders = redate_recent_deliveries(orders, seed)
 
     _write_jsonl(
         out_dir / "products.jsonl", [product.model_dump(mode="json") for product in products]

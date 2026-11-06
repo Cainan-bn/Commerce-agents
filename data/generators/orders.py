@@ -178,3 +178,32 @@ def generate_orders(
         orders.append(_build_order(rng, order_id, status, products, customers))
 
     return orders
+
+
+RECENT_REDATE_CONSTANT = 1_000_000
+RECENT_DELIVERY_TARGET = 45
+
+
+def redate_recent_deliveries(orders: list[Order], seed: int) -> list[Order]:
+    """Redata um subconjunto determinístico de entregas para a janela de troca.
+
+    Usa um gerador separado (``seed + RECENT_REDATE_CONSTANT``) e só altera pedidos
+    ``delivered`` com id maior que O000100, preservando byte a byte os 100 primeiros
+    pedidos e a sequência de sorteios do gerador principal.
+    """
+    rng = random.Random(seed + RECENT_REDATE_CONSTANT)
+    candidates = [
+        order for order in orders if order.status == "delivered" and int(order.order_id[1:]) > 100
+    ]
+    selected_ids = {order.order_id for order in rng.sample(candidates, k=RECENT_DELIVERY_TARGET)}
+
+    redated: list[Order] = []
+    for order in orders:
+        if order.order_id in selected_ids:
+            days = rng.randint(1, 7)
+            delivered_at = (TODAY - timedelta(days=days)).replace(
+                hour=rng.randint(8, 21), minute=rng.randint(0, 59), second=0, microsecond=0
+            )
+            order = order.model_copy(update={"delivered_at": delivered_at})
+        redated.append(order)
+    return redated
