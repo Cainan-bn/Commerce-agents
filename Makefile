@@ -59,7 +59,7 @@ migrate: ## Aplica migracoes
 lint: ## Roda ruff, format check, mypy --strict e import-linter
 	uv run ruff check .
 	uv run ruff format --check .
-	uv run mypy --strict src mock_store
+	uv run mypy --strict src mock_store data
 	uv run lint-imports
 
 build: ## Constroi a imagem Docker da aplicacao

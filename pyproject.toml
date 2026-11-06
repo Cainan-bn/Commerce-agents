@@ -35,10 +35,19 @@ package = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/commerce_agents"]
 
+[tool.commitizen]
+name = "cz_customize"
+
+[tool.commitizen.customize]
+schema = "<tipo>(<escopo>): <assunto>"
+schema_pattern = '(?s)(build|bump|chore|ci|data|docs|feat|fix|perf|refactor|revert|style|test)(\(\S+\))?!?: ([^\n\r]+)((\n\n.*)|(\s*))?$'
+example = "feat: nova funcionalidade"
+message_template = "{{change_type}}{% if scope %}({{scope}}){% endif %}: {{subject}}\n\n{{body}}\n\n{{footer}}"
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests", "mock_store"]
+src = ["src", "tests", "mock_store", "data"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -47,7 +56,7 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.12"
 strict = true
 warn_unused_configs = true
-files = ["src", "mock_store"]
+files = ["src", "mock_store", "data"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
