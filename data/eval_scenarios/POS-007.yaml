@@ -10,7 +10,7 @@ turns:
 - quero cancelar o pedido O000017
 expected:
   intent: cancel_order
-  agent: pos_venda
+  agent: pedidos
   tools:
   - name: get_order_status
     args:

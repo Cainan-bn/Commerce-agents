@@ -207,6 +207,24 @@ class IdempotencyRecordModel(Base):
     )
 
 
+class CustomerPreferenceModel(Base):
+    """Preferência de longo prazo do cliente, lida como dado no prompt (ADR 0013)."""
+
+    __tablename__ = "customer_preferences"
+    __table_args__ = (
+        CheckConstraint("char_length(key) > 0", name="ck_customer_preferences_key_nonempty"),
+    )
+
+    customer_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("customers.customer_id", ondelete="CASCADE"), primary_key=True
+    )
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 EMBEDDING_DIMENSIONS = 384
 POLICY_SEARCH_VECTOR_SQL = (
     "to_tsvector('portuguese'::regconfig, "
