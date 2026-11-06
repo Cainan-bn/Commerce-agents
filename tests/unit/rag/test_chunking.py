@@ -81,6 +81,18 @@ def test_paragrafo_maior_que_900_fica_sozinho():
     assert all(giant not in t for t in texts if t != giant)
 
 
+def test_introducao_vira_primeiro_chunk_com_secao_introducao():
+    text = FRONT + "Texto de introdução.\n\n## Prazo\n\nUm.\n"
+
+    chunks = _chunk("doc", text)
+
+    assert [chunk.section for chunk in chunks] == ["Introdução", "Prazo"]
+    assert chunks[0].position == 0
+    assert chunks[0].chunk_id == "doc#0"
+    assert chunks[0].text == "Texto de introdução."
+    assert chunks[1].chunk_id == "doc#1"
+
+
 def test_ids_unicos_posicoes_sequenciais_e_sem_chunk_vazio():
     text = FRONT + "## A\n\nUm.\n\n## B\n\nDois.\n\n## C\n\nTrês.\n"
 
@@ -112,10 +124,13 @@ def test_determinismo_byte_a_byte():
 def test_corpus_real_tem_um_chunk_por_secao_sem_vazios(policy: Path):
     text = policy.read_text(encoding="utf-8")
     sections = [line for line in text.splitlines() if line.startswith("## ")]
+    intro = text.split("\n## ", 1)[0].split("---", 2)[2]
+    has_intro = any(line.strip() and not line.startswith("#") for line in intro.splitlines())
+    expected_sections = len(sections) + (1 if has_intro else 0)
 
     chunks = _chunk(policy.stem, text)
 
-    assert len({chunk.section for chunk in chunks}) == len(sections)
+    assert len({chunk.section for chunk in chunks}) == expected_sections
     assert all(chunk.text.strip() for chunk in chunks)
     assert len({chunk.chunk_id for chunk in chunks}) == len(chunks)
 
