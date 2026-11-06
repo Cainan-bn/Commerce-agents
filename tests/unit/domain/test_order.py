@@ -1,11 +1,17 @@
 """Contrato de invariantes, cancelamento e imutabilidade de Order."""
 
 from dataclasses import FrozenInstanceError
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from commerce_agents.domain.order.order import OrderItem
+from commerce_agents.domain.order.returns import (
+    ReturnEligibilityReason,
+    evaluate_return_eligibility,
+)
 from commerce_agents.domain.order.status import OrderStatus
 from commerce_agents.domain.shared.errors import InvariantViolation, OrderNotCancelable
 from tests.unit.domain.builders import BASE_TIME, make_item, make_order
@@ -129,3 +135,80 @@ def test_order_exposes_items_immutably() -> None:
 
     with pytest.raises(FrozenInstanceError):
         order.items = ()  # type: ignore[misc]
+
+
+def test_refusal_preserves_original_delivered_at() -> None:
+    delivered_at = datetime(2026, 10, 10, 8, 0, tzinfo=UTC)
+    order = make_order(
+        status=OrderStatus.return_requested,
+        created_at=delivered_at - timedelta(days=5),
+        delivered_at=delivered_at,
+    )
+
+    redelivered = order.transition_to(OrderStatus.delivered, delivered_at + timedelta(days=10))
+
+    assert redelivered.status is OrderStatus.delivered
+    assert redelivered.delivered_at == delivered_at
+
+
+@given(st.integers(min_value=1, max_value=365 * 24 * 60 * 60))
+def test_refusal_preserves_delivered_at_for_any_later_instant(offset_seconds: int) -> None:
+    delivered_at = BASE_TIME
+    order = make_order(
+        status=OrderStatus.return_requested,
+        created_at=delivered_at - timedelta(days=5),
+        delivered_at=delivered_at,
+    )
+
+    redelivered = order.transition_to(
+        OrderStatus.delivered, delivered_at + timedelta(seconds=offset_seconds)
+    )
+
+    assert redelivered.delivered_at == delivered_at
+
+
+def test_refusal_at_five_days_does_not_reopen_return_window() -> None:
+    delivered_at = datetime(2026, 10, 10, 8, 0, tzinfo=UTC)
+    order = make_order(
+        status=OrderStatus.return_requested,
+        created_at=delivered_at - timedelta(days=5),
+        delivered_at=delivered_at,
+    )
+
+    redelivered = order.transition_to(OrderStatus.delivered, delivered_at + timedelta(days=5))
+    eligibility = evaluate_return_eligibility(
+        redelivered, "SKU-1", delivered_at + timedelta(days=8)
+    )
+
+    assert eligibility.eligible is False
+    assert eligibility.reason is ReturnEligibilityReason.deadline_exceeded
+    assert eligibility.deadline == delivered_at + timedelta(days=7)
+
+
+@given(st.integers(min_value=1, max_value=5 * 24 * 60 * 60))
+def test_refusal_property_does_not_reopen_return_window(offset_seconds: int) -> None:
+    delivered_at = BASE_TIME
+    order = make_order(
+        status=OrderStatus.return_requested,
+        created_at=delivered_at - timedelta(days=5),
+        delivered_at=delivered_at,
+    )
+    refusal_at = delivered_at + timedelta(seconds=offset_seconds)
+
+    redelivered = order.transition_to(OrderStatus.delivered, refusal_at)
+    eligibility = evaluate_return_eligibility(
+        redelivered, "SKU-1", delivered_at + timedelta(days=8)
+    )
+
+    assert eligibility.eligible is False
+    assert eligibility.reason is ReturnEligibilityReason.deadline_exceeded
+
+
+def test_first_delivery_sets_delivered_at() -> None:
+    order = make_order(status=OrderStatus.in_transit, tracking_code="TH123456789BR")
+    delivered_at = datetime(2026, 10, 12, 9, 30, tzinfo=UTC)
+
+    delivered = order.transition_to(OrderStatus.delivered, delivered_at)
+
+    assert delivered.status is OrderStatus.delivered
+    assert delivered.delivered_at == delivered_at
