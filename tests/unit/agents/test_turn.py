@@ -11,9 +11,6 @@ from commerce_agents.application.dto.tools import AGENT_ALLOWLIST
 pytestmark = pytest.mark.unit
 
 SCENARIOS_DIR = Path(__file__).resolve().parents[3] / "data" / "eval_scenarios"
-# Cenários POS-006/007 pedem cancel_order com agente pos_venda, mas a allowlist de PosVenda não
-# inclui cancel_order e o ADR 0013 manda cancelamento para pedidos. Conflito dos dados, a decidir.
-KNOWN_SCENARIO_CONFLICTS = {"POS-006", "POS-007"}
 
 
 def _turn():  # type: ignore[no-untyped-def]
@@ -48,7 +45,7 @@ def test_agent_for_intent_bate_com_os_cenarios_dev():
         if mapping[Intent(scenario["expected"]["intent"])] != scenario["expected"]["agent"]
     }
 
-    assert mismatches == KNOWN_SCENARIO_CONFLICTS
+    assert mismatches == set()
 
 
 def test_agent_tool_key_e_consistente_com_a_allowlist():
