@@ -88,7 +88,7 @@ class Order:
             raise InvalidStateTransition(
                 f"transição de {self.status.value} para {new.value} não permitida"
             )
-        if new is OrderStatus.delivered:
+        if new is OrderStatus.delivered and self.delivered_at is None:
             return replace(self, status=new, delivered_at=at)
         return replace(self, status=new)
 
