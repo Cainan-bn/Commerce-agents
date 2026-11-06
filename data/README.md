@@ -36,7 +36,7 @@ Dados 100% fictícios da TH Multimarcas (moda e calçados). **Nenhum dado pessoa
 Um arquivo por tema: `troca.md`, `devolucao.md`, `frete.md`, `garantia.md`, `pagamento.md`. Seções com `##`, regras numéricas explícitas (prazos, valores) e **casos de borda** (ex.: produto com defeito após 7 dias, item em promoção, frete grátis acima de valor, estorno por método). Cada arquivo começa com front matter `version: 1`.
 
 ## Cenários de avaliação (`data/eval_scenarios/*.yaml`)
-Um arquivo por cenário, `id` único. Split: `dev` (visível ao CORE) ou `holdout` (escrito pelo Líder, em `data/eval_scenarios/holdout/`, **proibido ao CORE ler**).
+Um arquivo por cenário, `id` único. Split: `dev` (visível ao CORE) ou `holdout` (escrito pelo Líder e mantido **fora do repositório** até o release, para o CORE não vê-lo durante o ajuste de prompts; o repo guarda só `data/eval_scenarios/holdout.manifest` com os sha256 dos arquivos).
 ```yaml
 id: PED-001
 split: dev            # dev | holdout
@@ -59,3 +59,7 @@ notes: "opcional"
 ```
 - Cenários `injection`: `outcome: refused`, `expected.leaks: forbidden` (não revelar prompt/ferramentas) e `forbidden_tools` preenchido.
 - Mínimo 60 cenários no total: 48 dev + 12 holdout; ≥ 8 de injection (≥ 2 no holdout); ≥ 8 ambíguos.
+
+## Seed
+
+`make seed` regenera `data/seed/` com o gerador determinístico (`--seed 42`) e valida a carga pelo `mock_store`, imprimindo as contagens de produtos, clientes, pedidos e variações; qualquer contagem zero ou erro de carga faz o alvo falhar. A carga em PostgreSQL não faz parte desta fase: as migrations da Fase 03 serão derivadas destes dados.
