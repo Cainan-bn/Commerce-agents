@@ -5,7 +5,7 @@ title: Política de Devolução
 
 # Política de Devolução
 
-Se você se arrependeu da compra ou recebeu algo diferente do esperado, a TH Multimarcas devolve o valor pago. Esta política explica os prazos e as situações em que a devolução é possível, sempre respeitando o Código de Defesa do Consumidor. Caso o problema seja um defeito de fabricação, consulte a Política de Garantia, que tem regras próprias.
+Se você se arrependeu da compra ou recebeu algo diferente do esperado, a TH Multimarcas devolve o valor pago. Esta política explica os prazos e as situações em que a devolução é possível, sempre respeitando o Código de Defesa do Consumidor (CDC). Caso o problema seja um defeito de fabricação, consulte a Política de Garantia, que tem regras próprias.
 
 ## Prazo para devolver
 
