@@ -10,7 +10,7 @@ import psycopg
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from testcontainers.community.postgres import PostgresContainer
 
 from commerce_agents.infrastructure.persistence.database import (
@@ -112,3 +112,16 @@ def migration_sync_url(
     finally:
         with psycopg.connect(postgres_container.admin_dsn, autocommit=True) as connection:
             connection.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+
+
+@pytest_asyncio.fixture
+async def engine_and_factory(
+    migration_sync_url: str,
+) -> AsyncIterator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]]]:
+    """Banco novo migrado até head, para os testes de confirmação e idempotência."""
+    upgrade_to_head(migration_sync_url)
+    engine = create_engine(migration_sync_url.replace("+psycopg", "+asyncpg"))
+    try:
+        yield engine, create_session_factory(engine)
+    finally:
+        await engine.dispose()
