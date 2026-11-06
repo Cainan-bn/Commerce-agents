@@ -244,3 +244,7 @@ def test_main_interpreta_o_modo(monkeypatch: pytest.MonkeyPatch):
     worker.main([])
 
     assert modes == ["sender", "all"]
+
+
+def test_utcnow_devolve_datetime_com_fuso():
+    assert composition.utcnow().tzinfo is not None
