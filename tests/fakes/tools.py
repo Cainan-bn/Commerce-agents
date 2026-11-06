@@ -124,3 +124,6 @@ def build_executor(
         sleep=sleep,
         **options,
     )
+
+
+FAKE_CANCEL_ORDER_ARGS: dict[str, str] = {"order_id": "O000014"}
