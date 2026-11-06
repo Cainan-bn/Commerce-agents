@@ -255,6 +255,54 @@ async def test_create_return_is_idempotent_and_validates_eligibility(
 
 
 @pytest.mark.contract
+async def test_cancel_idempotency_key_reused_with_other_order(client: AsyncClient) -> None:
+    headers = {"Idempotency-Key": "shared-cancel"}
+    first = await client.post("/orders/O000004/cancel", headers=headers)
+    assert first.status_code == 200
+
+    reused = await client.post("/orders/O000005/cancel", headers=headers)
+    assert reused.status_code == 422
+    assert reused.json()["detail"] == "idempotency key reutilizada com parâmetros diferentes"
+
+    untouched = await client.get("/orders/O000005")
+    assert untouched.json()["status"] == "paid"
+
+    replay = await client.post("/orders/O000004/cancel", headers=headers)
+    assert replay.status_code == 200
+    assert replay.json() == first.json()
+
+
+@pytest.mark.contract
+async def test_return_idempotency_key_reused_with_other_order(client: AsyncClient) -> None:
+    headers = {"Idempotency-Key": "shared-return"}
+    payload = {"order_id": "O000001", "sku": "P0001-42-PRETO", "reason": "tamanho errado"}
+    first = await client.post("/returns", json=payload, headers=headers)
+    assert first.status_code == 200
+
+    other_order = await client.post(
+        "/returns",
+        json={"order_id": "O000002", "sku": "P0002-M-BRANCO", "reason": "tamanho errado"},
+        headers=headers,
+    )
+    assert other_order.status_code == 422
+    assert other_order.json()["detail"] == "idempotency key reutilizada com parâmetros diferentes"
+
+    untouched = await client.get("/orders/O000002")
+    assert untouched.json()["status"] == "delivered"
+    assert untouched.json()["return_request"] is None
+
+    other_reason = await client.post(
+        "/returns", json={**payload, "reason": "defeito"}, headers=headers
+    )
+    assert other_reason.status_code == 422
+    assert other_reason.json()["detail"] == "idempotency key reutilizada com parâmetros diferentes"
+
+    replay = await client.post("/returns", json=payload, headers=headers)
+    assert replay.status_code == 200
+    assert replay.json() == first.json()
+
+
+@pytest.mark.contract
 async def test_admin_reset_restores_original_state(client: AsyncClient) -> None:
     cancelled = await client.post(
         "/orders/O000004/cancel", headers={"Idempotency-Key": "reset-cancel"}
