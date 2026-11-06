@@ -17,7 +17,7 @@ branch_labels = None
 depends_on = None
 
 # Tabelas criadas por revisões posteriores: o metadata atual as inclui, mas esta revisão não.
-_LATER_TABLES = frozenset({"confirmation_tokens", "idempotency_records"})
+_LATER_TABLES = frozenset({"confirmation_tokens", "idempotency_records", "policy_chunks"})
 
 
 def _initial_tables() -> list[Table]:
