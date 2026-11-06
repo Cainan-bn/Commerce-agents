@@ -7,6 +7,7 @@ import asyncio
 import logging
 import random
 from collections.abc import Awaitable, Callable, Mapping
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -31,6 +32,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 _BACKOFF_BASE_SECONDS = 0.5
 _BACKOFF_CAP_SECONDS = 30.0
+
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 
 Sleep = Callable[[float], Awaitable[None]]
 
@@ -131,7 +134,15 @@ def _retry_after(response: httpx.Response) -> float | None:
 
 def _build(env: Mapping[str, str], model_var: str) -> LLMProvider:
     model = env.get(model_var, "")
-    provider = env.get("LLM_PROVIDER") or ("openai-compatible" if env.get("LLM_API_KEY") else "")
+    provider = env.get("LLM_PROVIDER") or (
+        "openai-compatible" if env.get("LLM_API_KEY") else "opencode-cli"
+    )
+    if provider == "opencode-cli":
+        from commerce_agents.infrastructure.llm.opencode_cli import OpenCodeCliProvider
+
+        if not model:
+            raise ValueError(f"{model_var} é obrigatório")
+        return OpenCodeCliProvider(model, workdir=_opencode_workdir(env))
     if provider == "openai-compatible":
         if not env.get("LLM_API_KEY"):
             raise ValueError("LLM_API_KEY é obrigatório com LLM_PROVIDER=openai-compatible")
@@ -141,6 +152,11 @@ def _build(env: Mapping[str, str], model_var: str) -> LLMProvider:
             env.get("LLM_BASE_URL") or DEFAULT_BASE_URL, env["LLM_API_KEY"], model
         )
     raise ValueError(f"LLM_PROVIDER inválido: {provider!r} (use opencode-cli ou openai-compatible)")
+
+
+def _opencode_workdir(env: Mapping[str, str]) -> Path:
+    configured = env.get("LLM_WORKDIR")
+    return Path(configured) if configured else _REPO_ROOT / "evals" / "opencode"
 
 
 def build_provider_from_env(env: Mapping[str, str]) -> LLMProvider:
