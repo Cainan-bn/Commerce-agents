@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -200,6 +201,45 @@ class IdempotencyRecordModel(Base):
     result_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+EMBEDDING_DIMENSIONS = 384
+POLICY_SEARCH_VECTOR_SQL = (
+    "to_tsvector('portuguese'::regconfig, "
+    "public.immutable_unaccent(title || ' ' || section || ' ' || text))"
+)
+
+
+class PolicyChunkModel(Base):
+    """Trecho de política indexado para busca híbrida (ADR 0005 e 0012)."""
+
+    __tablename__ = "policy_chunks"
+    __table_args__ = (
+        Index("ix_policy_chunks_search_vector", "search_vector", postgresql_using="gin"),
+        Index(
+            "ix_policy_chunks_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+
+    chunk_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    document: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    section: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    model_name: Mapped[str] = mapped_column(Text, nullable=False)
+    corpus_version: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSIONS), nullable=False)
+    search_vector: Mapped[str] = mapped_column(
+        TSVECTOR, Computed(POLICY_SEARCH_VECTOR_SQL, persisted=True), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

@@ -30,3 +30,9 @@
 - Métricas: 496 testes, cobertura 99%; ações irreversíveis só executam com token válido (uso único, Postgres) e idempotência; verificação de ponta a ponta entre processos feita pelo Líder.
 - Riscos abertos: fallback em memória sem DB explícito; purga de tokens; heurística de confirmação a medir nos evals.
 - Próxima fase: 05 — RAG de políticas (hybrid tsvector + pgvector + RRF).
+
+## Fase 05 — RAG de políticas
+- Estado: concluída na branch `fase/05-rag-politicas`; PR aberto, aguardando CI para merge.
+- Métricas: 565 testes, cobertura 99%; recall@4 = 1,0 / MRR = 0,81 (n=8, modelo real, pergunta do cliente); ingestão idempotente (59 chunks, 2ª rodada sem embeddings).
+- Riscos abertos: amostra pequena de avaliação; limiar denso global deixa vazar "cotação do dólar"; imagem maior por causa do onnxruntime.
+- Próxima fase: 06 — orquestrador LangGraph (supervisor + 4 especialistas, checkpoint Postgres).

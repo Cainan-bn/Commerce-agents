@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run mock seed-db
+.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run mock seed-db ingest-policies eval-rag
 
 SEED_OUT ?= data/seed
 
@@ -69,6 +69,15 @@ migrate: ## Aplica as migracoes do Alembic (DATABASE_URL ou POSTGRES_* do .env)
 	if [ -f .env ]; then . ./.env; fi; \
 	set +a; \
 	uv run python -c "from commerce_agents.infrastructure.persistence.migrate import upgrade_to_head, sync_url_from_env; upgrade_to_head(sync_url_from_env())"
+
+ingest-policies: ## Indexa data/policies no Postgres (idempotente; modelo de embeddings do .env)
+	@set -a; \
+	if [ -f .env ]; then . ./.env; fi; \
+	set +a; \
+	uv run python -m commerce_agents.infrastructure.rag
+
+eval-rag: ## Mede recall@4 e MRR do RAG com o modelo real (marcador embeddings; fora do make test)
+	uv run pytest tests/quality -m embeddings --no-cov -s
 
 lint: ## Roda ruff, format check, mypy --strict e import-linter
 	uv run ruff check .
