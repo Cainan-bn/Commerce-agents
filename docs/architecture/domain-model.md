@@ -51,3 +51,11 @@ Tabelas derivadas dos dados da Fase 02 (`data/README.md`): `customers`, `product
 ## Assinaturas fixadas pelos testes (aprovadas pelo Líder)
 Os campos e construtores dos símbolos acima são os usados por `tests/unit/domain/builders.py`, que passa a fazer parte do contrato:
 `OrderItem(sku, qty, unit_price_cents)`; `Order(order_id, customer_id, status, created_at, total_cents, items, delivered_at, tracking_code)` com `is_cancelable` como propriedade e `with_tracking(code)`; `ReturnRequest(order_id, sku, reason, requested_at)`; `Customer(customer_id, name, email, phone, created_at)`; `Variant(sku, size, color, stock)` com `is_in_stock` como propriedade; `Product(product_id, name, brand, category, price_cents, description, variants)`; `Message(message_id, text, sent_at)`; `Conversation(conversation_id, status, messages, created_at)`.
+
+## Persistência: nomes fixos (Fase 03)
+- `infrastructure/persistence/database.py`: `create_engine(url: str) -> AsyncEngine`, `create_session_factory(engine) -> async_sessionmaker[AsyncSession]`.
+- `infrastructure/persistence/models.py`: modelos SQLAlchemy 2 (`CustomerModel`, `ProductModel`, `VariantModel`, `OrderModel`, `OrderItemModel`, `ReturnRequestModel`, `ConversationModel`, `MessageModel`).
+- `infrastructure/persistence/migrate.py`: `upgrade_to_head(sync_url: str) -> None` (executa o Alembic programaticamente; usado por `make migrate` e pelos testes). Migrations em `infrastructure/persistence/migrations/`.
+- `infrastructure/persistence/repositories.py`: `SqlOrderRepository`, `SqlCustomerRepository`, `SqlReturnRequestRepository`, `SqlConversationRepository`, `SqlCatalogSearch`; todos recebem `async_sessionmaker[AsyncSession]` no construtor e implementam os ports de `application/ports/repositories.py` (que ganhou `find`/`save`, `CustomerRepository`, `ReturnRequestRepository`, `ConversationRepository`).
+- Variável de ambiente `DATABASE_URL` (ex.: `postgresql+asyncpg://<usuario>:<senha>@localhost:5432/commerce`); a URL síncrona do Alembic usa o driver `psycopg` ou é derivada por `migrate.py`.
+- Mapeamento ORM <-> domínio vive só em `infrastructure/persistence/` (mappers); regras de negócio ficam no domínio.
