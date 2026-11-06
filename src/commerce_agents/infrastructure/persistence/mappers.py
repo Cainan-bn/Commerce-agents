@@ -2,16 +2,25 @@
 
 from __future__ import annotations
 
-from commerce_agents.application.dto.views import OrderView
+from commerce_agents.application.dto.views import OrderView, ProductView, VariantAvailability
+from commerce_agents.domain.conversation.conversation import (
+    Conversation,
+    ConversationStatus,
+    Message,
+)
 from commerce_agents.domain.customer.customer import Customer
 from commerce_agents.domain.order.order import Order, OrderItem
 from commerce_agents.domain.order.returns import ReturnRequest
 from commerce_agents.domain.order.status import OrderStatus
 from commerce_agents.infrastructure.persistence.models import (
+    ConversationModel,
     CustomerModel,
+    MessageModel,
     OrderItemModel,
     OrderModel,
+    ProductModel,
     ReturnRequestModel,
+    VariantModel,
 )
 
 _EMPTY_SHIPPING = {"carrier": "", "cep": "", "method": ""}
@@ -94,4 +103,44 @@ def return_request_from_model(model: ReturnRequestModel) -> ReturnRequest:
         sku=model.sku,
         reason=model.reason,
         requested_at=model.requested_at,
+    )
+
+
+def conversation_to_model(conversation: Conversation) -> ConversationModel:
+    return ConversationModel(
+        conversation_id=conversation.conversation_id,
+        status=conversation.status.value,
+        created_at=conversation.created_at,
+    )
+
+
+def conversation_from_models(
+    model: ConversationModel, messages: list[MessageModel]
+) -> Conversation:
+    return Conversation(
+        conversation_id=model.conversation_id,
+        status=ConversationStatus(model.status),
+        messages=tuple(
+            Message(message_id=message.message_id, text=message.text, sent_at=message.sent_at)
+            for message in messages
+        ),
+        created_at=model.created_at,
+    )
+
+
+def product_to_view(model: ProductModel, variants: list[VariantModel]) -> ProductView:
+    return ProductView(
+        product_id=model.product_id,
+        name=model.name,
+        brand=model.brand,
+        price_cents=model.price_cents,
+        variants=tuple(
+            VariantAvailability(
+                sku=variant.sku,
+                size=variant.size,
+                color=variant.color,
+                stock=variant.stock,
+            )
+            for variant in variants
+        ),
     )

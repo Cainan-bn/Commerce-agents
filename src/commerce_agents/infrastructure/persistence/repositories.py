@@ -2,28 +2,36 @@
 
 from __future__ import annotations
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from commerce_agents.application.dto.views import OrderView
+from commerce_agents.application.dto.views import OrderView, ProductView
+from commerce_agents.domain.conversation.conversation import Conversation
 from commerce_agents.domain.customer.customer import Customer
 from commerce_agents.domain.order.order import Order
 from commerce_agents.domain.order.returns import ReturnRequest
 from commerce_agents.infrastructure.persistence.mappers import (
+    conversation_from_models,
+    conversation_to_model,
     customer_from_model,
     customer_to_model,
     order_from_models,
     order_item_to_model,
     order_to_model,
     order_to_view,
+    product_to_view,
     return_request_from_model,
 )
 from commerce_agents.infrastructure.persistence.models import (
+    ConversationModel,
     CustomerModel,
+    MessageModel,
     OrderItemModel,
     OrderModel,
+    ProductModel,
     ReturnRequestModel,
+    VariantModel,
 )
 
 
@@ -133,3 +141,93 @@ class SqlReturnRequestRepository:
                 .all()
             )
             return tuple(return_request_from_model(model) for model in models)
+
+
+class SqlConversationRepository:
+    """Persistência de conversas e mensagens, idempotente por ``message_id``."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def get(self, conversation_id: str) -> Conversation | None:
+        async with self._session_factory() as session, session.begin():
+            model = await session.get(ConversationModel, conversation_id)
+            if model is None:
+                return None
+            messages = (
+                (
+                    await session.execute(
+                        select(MessageModel)
+                        .where(MessageModel.conversation_id == conversation_id)
+                        .order_by(MessageModel.position)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            return conversation_from_models(model, list(messages))
+
+    async def save(self, conversation: Conversation) -> None:
+        async with self._session_factory() as session, session.begin():
+            await session.merge(conversation_to_model(conversation))
+            for position, message in enumerate(conversation.messages):
+                statement = (
+                    pg_insert(MessageModel)
+                    .values(
+                        message_id=message.message_id,
+                        conversation_id=conversation.conversation_id,
+                        position=position,
+                        text=message.text,
+                        sent_at=message.sent_at,
+                    )
+                    .on_conflict_do_nothing(index_elements=[MessageModel.message_id])
+                )
+                await session.execute(statement)
+
+
+class SqlCatalogSearch:
+    """Busca de catálogo via tsvector com suporte a consultas sem acento."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def search(self, query: str, limit: int = 5) -> list[ProductView]:
+        async with self._session_factory() as session, session.begin():
+            tsquery = func.websearch_to_tsquery("portuguese", func.immutable_unaccent(query))
+            products = (
+                (
+                    await session.execute(
+                        select(ProductModel)
+                        .where(ProductModel.search_vector.op("@@")(tsquery))
+                        .order_by(
+                            func.ts_rank(ProductModel.search_vector, tsquery).desc(),
+                            ProductModel.product_id,
+                        )
+                        .limit(limit)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            if not products:
+                return []
+
+            product_ids = [product.product_id for product in products]
+            variants = (
+                (
+                    await session.execute(
+                        select(VariantModel)
+                        .where(VariantModel.product_id.in_(product_ids))
+                        .order_by(VariantModel.sku)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            grouped: dict[str, list[VariantModel]] = {}
+            for variant in variants:
+                grouped.setdefault(variant.product_id, []).append(variant)
+            return [
+                product_to_view(product, grouped.get(product.product_id, []))
+                for product in products
+            ]
