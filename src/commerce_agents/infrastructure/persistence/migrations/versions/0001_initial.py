@@ -18,7 +18,16 @@ depends_on = None
 
 # Tabelas criadas por revisões posteriores: o metadata atual as inclui, mas esta revisão não.
 _LATER_TABLES = frozenset(
-    {"confirmation_tokens", "idempotency_records", "policy_chunks", "customer_preferences"}
+    {
+        "confirmation_tokens",
+        "idempotency_records",
+        "policy_chunks",
+        "customer_preferences",
+        "inbound_messages",
+        "outbox",
+        "handoffs",
+        "handoff_messages",
+    }
 )
 
 

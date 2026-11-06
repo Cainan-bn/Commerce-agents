@@ -19,6 +19,7 @@ from sqlalchemy import (
     Integer,
     Text,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -223,6 +224,81 @@ class CustomerPreferenceModel(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class InboundMessageModel(Base):
+    """Ledger de mensagens recebidas: base do efeito exatamente-uma-vez (ADR 0014)."""
+
+    __tablename__ = "inbound_messages"
+    __table_args__ = (
+        CheckConstraint("status IN ('received', 'done')", name="ck_inbound_messages_status"),
+    )
+
+    message_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="received")
+    reply_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class OutboxModel(Base):
+    """Transactional outbox: eventos a publicar no broker (ADR 0014)."""
+
+    __tablename__ = "outbox"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    topic: Mapped[str] = mapped_column(Text, nullable=False)
+    key: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    inbound_message_id: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class HandoffModel(Base):
+    __tablename__ = "handoffs"
+    __table_args__ = (
+        CheckConstraint("status IN ('open', 'claimed', 'closed')", name="ck_handoffs_status"),
+        CheckConstraint(
+            "priority IN ('low', 'normal', 'high', 'urgent')", name="ck_handoffs_priority"
+        ),
+        Index(
+            "uq_handoffs_active_conversation",
+            "conversation_id",
+            unique=True,
+            postgresql_where=text("status <> 'closed'"),
+        ),
+    )
+
+    handoff_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    priority: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    claimed_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class HandoffMessageModel(Base):
+    __tablename__ = "handoff_messages"
+    __table_args__ = (
+        CheckConstraint("author IN ('customer', 'agent_human')", name="ck_handoff_messages_author"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    handoff_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("handoffs.handoff_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    author: Mapped[str] = mapped_column(Text, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 EMBEDDING_DIMENSIONS = 384
