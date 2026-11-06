@@ -18,7 +18,7 @@ O ADR 0008 diz que o caso de uso `ConfirmIrreversibleAction` consome o token e d
 
 Opção 2. O servidor da ferramenta é o ponto de aplicação da regra, independente do LLM e do orquestrador:
 
-- Ordem: (a) se `idempotency_key` já tem resultado com os mesmos argumentos, devolve o resultado guardado; (b) com argumentos diferentes, `idempotency_conflict`; (c) senão consome o token (`ConfirmationTokenStore.consume`, digest = sha256 de JSON canônico dos `action_fields`), recusa com `confirmation_required`/`confirmation_invalid` se falhar; (d) chama a loja com `Idempotency-Key`; (e) guarda o resultado sob a chave.
+- Ordem: (a) se `idempotency_key` já tem resultado com os mesmos argumentos, devolve o resultado guardado; (b) com argumentos diferentes, `idempotency_conflict`; (c) senão consome o token (`ConfirmationTokenStore.consume`, digest = sha256 de JSON canônico dos `action_fields`), recusa com `confirmation_required`/`confirmation_invalid` se falhar; (d) grava marcador PENDENTE sob a chave e chama a loja com `Idempotency-Key`; (e) sobrescreve com o resultado (sucesso ou erro não transitório). Erro transitório esgotado deixa o PENDENTE: um novo `invoke` com a mesma chave e os mesmos argumentos não consome token, re-chama a loja (idempotente) e conclui. PENDENTE nunca é devolvido ao agente.
 - A `idempotency_key` é gerada na proposta e guardada junto do token no estado da conversa; retries reutilizam a mesma chave.
 - Falhas transitórias (`upstream_timeout`, `upstream_unavailable`) são as únicas repetidas automaticamente; ferramentas irreversíveis fazem no máximo 1 retry, sempre com a mesma chave.
 - `ConfirmIrreversibleAction` verifica a resposta afirmativa do cliente contra a proposta pendente e emite `IrreversibleActionConfirmed`.
