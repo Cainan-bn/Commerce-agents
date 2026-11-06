@@ -16,7 +16,7 @@ class ActionParseError(ValueError):
     """A saída do LLM não é uma ação válida do protocolo."""
 
 
-def _first_object(text: str) -> object:
+def first_json_object(text: str) -> object:
     """Primeiro objeto JSON do texto (o LLM pode cercá-lo de markdown ou prosa)."""
     start = text.find("{")
     while start != -1:
@@ -33,7 +33,7 @@ def _first_object(text: str) -> object:
 
 def parse_agent_action(text: str) -> ToolCall | FinalAnswer:
     """Extrai e valida a ação. Qualquer defeito vira `ActionParseError`."""
-    payload = _first_object(text)
+    payload = first_json_object(text)
     try:
         return _ACTION.validate_python(payload, strict=False)
     except ValidationError as error:
