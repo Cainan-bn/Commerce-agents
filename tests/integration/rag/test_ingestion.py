@@ -176,6 +176,7 @@ async def test_falha_em_reingestao_preserva_estado_anterior(rag_db, tmp_path: Pa
         encoding="utf-8",
     )
     with pytest.raises(RuntimeError, match="falha injetada"):
-        await _ingestor(factory, FailingEmbedder(fail_after=2)).ingest(policies)
+        # Na reingestão só o chunk alterado é embutido: qualquer embedding deve falhar.
+        await _ingestor(factory, FailingEmbedder(fail_after=0)).ingest(policies)
 
     assert [(row.chunk_id, row.corpus_version) for row in await _rows(engine)] == before

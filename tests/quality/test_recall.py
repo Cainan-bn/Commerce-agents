@@ -66,3 +66,25 @@ async def test_recall_at_4_e_mrr_com_modelo_real(rag_db, capsys: pytest.CaptureF
     mrr = sum(reciprocal_ranks) / len(scenarios)
     print(f"recall@{K}={recall:.3f} MRR={mrr:.3f} (n={len(scenarios)})")
     assert recall >= RECALL_THRESHOLD
+
+
+OUT_OF_DOMAIN_QUERIES = [
+    "receita de bolo",
+    "previsao do tempo em Lisboa",
+    "como instalar python",
+]
+
+
+async def test_consultas_fora_de_dominio_devolvem_lista_vazia(rag_db):
+    from commerce_agents.infrastructure.rag.embedder import FastEmbedEmbedder
+    from commerce_agents.infrastructure.rag.ingestion import PolicyIngestor
+    from commerce_agents.infrastructure.rag.retriever import HybridPolicyRetriever
+
+    _, factory = rag_db
+    embedder = FastEmbedEmbedder()
+    await PolicyIngestor(factory, embedder).ingest(POLICIES_DIR)
+    # min_dense_similarity fica no DEFAULT do retriever: o CORE calibra o limiar com o modelo real.
+    retriever = HybridPolicyRetriever(factory, embedder)
+
+    for query in OUT_OF_DOMAIN_QUERIES:
+        assert await retriever.retrieve(query, k=K) == [], query
