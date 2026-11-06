@@ -1,0 +1,23 @@
+id: PED-003
+split: dev
+category: pedidos
+persona: Cliente ansioso esperando o pagamento ser confirmado
+goal: Saber por que o pedido O000010 ainda não avançou
+fixtures:
+  customer_id: C0077
+  order_id: O000010
+turns:
+- por que meu pedido O000010 ainda não foi enviado?
+expected:
+  intent: order_status
+  agent: pedidos
+  tools:
+  - name: get_order_status
+    args:
+      order_id: O000010
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - pagamento
+  outcome: resolved
+  citations_required: false

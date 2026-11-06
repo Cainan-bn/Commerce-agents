@@ -1,0 +1,21 @@
+id: POL-001
+split: dev
+category: politicas
+persona: Cliente que comprou um tamanho errado
+goal: Saber o prazo para trocar um produto
+fixtures: {}
+turns:
+- qual o prazo para trocar um produto que não serviu?
+expected:
+  intent: policy_question
+  agent: politicas
+  tools:
+  - name: search_policies
+    args:
+      query: troca
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - 7 dias
+  outcome: resolved
+  citations_required: true

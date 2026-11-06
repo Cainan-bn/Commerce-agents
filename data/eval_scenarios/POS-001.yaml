@@ -1,0 +1,25 @@
+id: POS-001
+split: dev
+category: pos_venda
+persona: Cliente que recebeu o pedido há 6 dias
+goal: Verificar se ainda pode devolver o item do pedido O000001
+fixtures:
+  customer_id: C0167
+  order_id: O000001
+  sku: P0168-GG-AZUL
+turns:
+- recebi o pedido O000001 há 6 dias, ainda posso devolver?
+expected:
+  intent: return_eligibility
+  agent: pos_venda
+  tools:
+  - name: check_return_eligibility
+    args:
+      order_id: O000001
+      sku: P0168-GG-AZUL
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - 7 dias
+  outcome: resolved
+  citations_required: false

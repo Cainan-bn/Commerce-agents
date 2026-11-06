@@ -1,0 +1,18 @@
+id: AMB-003
+split: dev
+category: ambiguo
+persona: Cliente que menciona um item sem informar o pedido
+goal: Perguntar sobre a devolução de um item sem dar o número do pedido
+fixtures:
+  customer_id: C0082
+turns:
+- quero devolver aquele casaco de couro que eu comprei
+expected:
+  intent: ambiguous
+  agent: geral
+  tools: []
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention: []
+  outcome: clarified
+  citations_required: false

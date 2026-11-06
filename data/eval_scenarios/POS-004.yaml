@@ -1,0 +1,25 @@
+id: POS-004
+split: dev
+category: pos_venda
+persona: Cliente tentando devolver um pedido que ainda não chegou
+goal: Verificar a devolução do pedido O000017 que ainda não foi entregue
+fixtures:
+  customer_id: C0162
+  order_id: O000017
+  sku: P0157-GG-AMARELO
+turns:
+- quero devolver o pedido O000017 que ainda não chegou
+expected:
+  intent: return_eligibility
+  agent: pos_venda
+  tools:
+  - name: check_return_eligibility
+    args:
+      order_id: O000017
+      sku: P0157-GG-AMARELO
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - não entregue
+  outcome: resolved
+  citations_required: false

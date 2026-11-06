@@ -16,6 +16,8 @@ dependencies = [
 dev = [
   "commitizen>=3.31",
   "detect-secrets>=1.5",
+  "fastapi>=0.115",
+  "httpx>=0.28",
   "hypothesis>=6.0",
   "import-linter>=2.0",
   "mypy==1.13.0",
@@ -23,7 +25,9 @@ dev = [
   "pytest>=8.3",
   "pytest-asyncio>=0.24",
   "pytest-cov>=6.0",
+  "pyyaml>=6.0",
   "ruff==0.8.4",
+  "uvicorn>=0.32",
 ]
 
 [tool.uv]
@@ -32,10 +36,19 @@ package = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/commerce_agents"]
 
+[tool.commitizen]
+name = "cz_customize"
+
+[tool.commitizen.customize]
+schema = "<tipo>(<escopo>): <assunto>"
+schema_pattern = '(?s)(build|bump|chore|ci|data|docs|feat|fix|perf|refactor|revert|style|test)(\(\S+\))?!?: ([^\n\r]+)((\n\n.*)|(\s*))?$'
+example = "feat: nova funcionalidade"
+message_template = "{{change_type}}{% if scope %}({{scope}}){% endif %}: {{subject}}\n\n{{body}}\n\n{{footer}}"
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests"]
+src = ["src", "tests", "mock_store", "data"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -44,7 +57,7 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.12"
 strict = true
 warn_unused_configs = true
-files = ["src"]
+files = ["src", "mock_store", "data"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
@@ -66,7 +79,7 @@ source = ["commerce_agents"]
 show_missing = true
 
 [tool.importlinter]
-root_packages = ["commerce_agents"]
+root_packages = ["commerce_agents", "mock_store"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -78,6 +91,12 @@ layers = [
   "commerce_agents.application",
   "commerce_agents.domain",
 ]
+
+[[tool.importlinter.contracts]]
+name = "mock_store independente da aplicacao"
+type = "forbidden"
+source_modules = ["mock_store"]
+forbidden_modules = ["commerce_agents"]
 
 [[tool.importlinter.contracts]]
 name = "Domain independente de frameworks e I/O"

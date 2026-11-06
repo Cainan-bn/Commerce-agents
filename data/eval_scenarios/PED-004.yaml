@@ -1,0 +1,21 @@
+id: PED-004
+split: dev
+category: pedidos
+persona: Cliente que compra muito e quer ver todas as compras
+goal: Listar todos os pedidos do cliente C0123
+fixtures:
+  customer_id: C0123
+turns:
+- quais são todos os meus pedidos?
+expected:
+  intent: list_orders
+  agent: pedidos
+  tools:
+  - name: list_customer_orders
+    args:
+      customer_id: C0123
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention: []
+  outcome: resolved
+  citations_required: false

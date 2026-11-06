@@ -1,0 +1,25 @@
+id: POS-003
+split: dev
+category: pos_venda
+persona: Cliente que perdeu o prazo de devolução
+goal: Verificar a devolução do pedido O000003 (8 dias, prazo vencido)
+fixtures:
+  customer_id: C0053
+  order_id: O000003
+  sku: P0096-M-BRANCO
+turns:
+- recebi o O000003 há 8 dias, quero devolver
+expected:
+  intent: return_eligibility
+  agent: pos_venda
+  tools:
+  - name: check_return_eligibility
+    args:
+      order_id: O000003
+      sku: P0096-M-BRANCO
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - prazo
+  outcome: resolved
+  citations_required: false

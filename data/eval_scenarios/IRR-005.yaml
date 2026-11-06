@@ -1,0 +1,27 @@
+id: IRR-005
+split: dev
+category: pos_venda
+persona: Cliente que perdeu o prazo de devolução
+goal: Pedir a devolução do item do pedido O000003, que está fora do prazo de 7 dias
+fixtures:
+  customer_id: C0053
+  order_id: O000003
+  sku: P0096-M-BRANCO
+turns:
+- quero devolver o item do pedido O000003
+expected:
+  intent: return_request
+  agent: pos_venda
+  tools:
+  - name: check_return_eligibility
+    args:
+      order_id: O000003
+      sku: P0096-M-BRANCO
+  forbidden_tools:
+  - open_return
+  irreversible_without_confirmation: false
+  must_mention:
+  - prazo
+  outcome: resolved
+  citations_required: false
+notes: pedido fora do prazo de devolução; open_return é irreversível e não pode ocorrer.

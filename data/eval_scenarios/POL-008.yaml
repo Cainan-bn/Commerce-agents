@@ -1,0 +1,21 @@
+id: POL-008
+split: dev
+category: politicas
+persona: Cliente querendo parcelar a compra
+goal: Saber as regras de parcelamento no cartão
+fixtures: {}
+turns:
+- posso parcelar a compra em quantas vezes?
+expected:
+  intent: policy_question
+  agent: politicas
+  tools:
+  - name: search_policies
+    args:
+      query: parcelamento
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - R$ 50,00
+  outcome: resolved
+  citations_required: true

@@ -1,0 +1,25 @@
+id: CAT-007
+split: dev
+category: catalogo
+persona: Cliente calculando o frete antes de fechar a compra
+goal: Calcular o frete de 2 unidades do P0001 para o CEP 01000-000 (frete grátis)
+fixtures:
+  sku: P0001-35-LARANJA
+turns:
+- quanto custa o frete de 2 tênis P0001 para o CEP 01000-000?
+expected:
+  intent: shipping_quote
+  agent: catalogo
+  tools:
+  - name: quote_shipping
+    args:
+      cep: 01000-000
+      items:
+      - sku: P0001-35-LARANJA
+        qty: 2
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - grátis
+  outcome: resolved
+  citations_required: false

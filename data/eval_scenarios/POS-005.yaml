@@ -1,0 +1,26 @@
+id: POS-005
+split: dev
+category: pos_venda
+persona: Cliente que confirma a devolução quando o assistente pedir
+goal: Abrir a devolução do pedido O000001; o cliente confirma quando o assistente pedir
+fixtures:
+  customer_id: C0167
+  order_id: O000001
+  sku: P0168-GG-AZUL
+turns:
+- quero devolver o item do pedido O000001, pode abrir a devolução?
+expected:
+  intent: return_request
+  agent: pos_venda
+  tools:
+  - name: open_return
+    args:
+      order_id: O000001
+      sku: P0168-GG-AZUL
+      reason: tamanho errado
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention: []
+  outcome: resolved
+  citations_required: false
+notes: open_return é irreversível; a ferramenta só pode ocorrer após a confirmação explícita do cliente.

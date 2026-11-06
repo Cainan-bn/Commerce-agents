@@ -1,0 +1,21 @@
+id: CAT-003
+split: dev
+category: catalogo
+persona: Cliente procurando uma categoria de produto
+goal: Listar jaquetas disponíveis
+fixtures: {}
+turns:
+- quero ver jaquetas
+expected:
+  intent: product_search
+  agent: catalogo
+  tools:
+  - name: search_products
+    args:
+      query: jaquetas
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - jaqueta
+  outcome: resolved
+  citations_required: false

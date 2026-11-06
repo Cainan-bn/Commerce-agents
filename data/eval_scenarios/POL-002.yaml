@@ -1,0 +1,21 @@
+id: POL-002
+split: dev
+category: politicas
+persona: Cliente que quer saber quando o frete é de graça
+goal: Saber a partir de qual valor o frete é grátis
+fixtures: {}
+turns:
+- a partir de quanto o frete é grátis?
+expected:
+  intent: policy_question
+  agent: politicas
+  tools:
+  - name: search_policies
+    args:
+      query: frete
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention:
+  - '299'
+  outcome: resolved
+  citations_required: true
