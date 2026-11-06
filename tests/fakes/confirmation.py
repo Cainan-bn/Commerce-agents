@@ -49,6 +49,10 @@ class InMemoryTokenStore:
         return True
 
 
+PENDING_RESULT = "__pending__"
+"""Marcador gravado quando o token foi consumido e a loja não respondeu (ADR 0011, retomada)."""
+
+
 class InMemoryIdempotencyRegistry:
     """Resultado registrado por `idempotency_key`, com o fingerprint dos argumentos de ação."""
 

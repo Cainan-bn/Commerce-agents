@@ -97,7 +97,11 @@ async def test_token_de_outra_acao_e_recusado(
     make_executor, tokens: InMemoryTokenStore, transport: RecordingTransport
 ):
     executor = make_executor()
-    token = await issue_token(tokens, "open_return", {"order_id": "O000014"})
+    token = await issue_token(
+        tokens,
+        "open_return",
+        {"order_id": "O000014", "sku": "P0168-GG-AZUL", "reason": "x"},
+    )
 
     result = await executor.invoke(
         "Pedidos", "cancel_order", _cancel_args(token, "idem-acao-00001")
