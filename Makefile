@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run mock seed-db ingest-policies eval-rag test-panel
+.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
 
 SEED_OUT ?= data/seed
 
@@ -114,6 +114,18 @@ eval: ## Roda a suite de avaliacao
 
 load: ## Roda teste de carga k6
 	@echo "[load] nao implementado nesta fase"
+
+run-api: ## Sobe a API de canais e o painel (porta 8000; requer Postgres e Redpanda do compose)
+	@set -a; \
+	if [ -f .env ]; then . ./.env; fi; \
+	set +a; \
+	uv run uvicorn commerce_agents.interfaces.main:app --port 8000
+
+run-worker: ## Sobe os workers (inbound, relay e sender) do pipeline de mensagens
+	@set -a; \
+	if [ -f .env ]; then . ./.env; fi; \
+	set +a; \
+	uv run python -m commerce_agents.interfaces.worker all
 
 run: ## Sobe a aplicacao localmente
 	@echo "[run] nao implementado nesta fase"
