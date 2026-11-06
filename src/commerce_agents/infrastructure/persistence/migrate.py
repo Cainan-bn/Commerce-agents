@@ -32,7 +32,7 @@ def sync_url_from_async(async_url: str) -> str:
 def sync_url_from_env() -> str:
     """Deriva a URL síncrona a partir de ``DATABASE_URL`` ou das variáveis ``POSTGRES_*``."""
     url = os.environ.get("DATABASE_URL")
-    if url:
+    if url and "@" in url and ":@" not in url:
         return sync_url_from_async(url)
     user = os.environ.get("POSTGRES_USER", _DEFAULT_USER)
     password = os.environ.get("POSTGRES_PASSWORD", _DEFAULT_PASSWORD)
