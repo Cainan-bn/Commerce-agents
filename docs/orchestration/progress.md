@@ -18,3 +18,9 @@
 - Métricas: 55 testes; 54 cenários dev + 12 holdout (privados, manifesto no repo); seed determinístico (300/200/1000).
 - Riscos abertos: carga em PostgreSQL só na Fase 03; checkout compartilhado entre agentes (usar worktrees); Docker precisa estar ativo.
 - Próxima fase: 03 — domínio e persistência (OPS escreve testes red, CORE implementa).
+
+## Fase 03 — Domínio e persistência
+- Estado: concluída na branch `fase/03-dominio-e-persistencia`; PR aberto, aguardando CI para merge.
+- Métricas: 252 testes (38 de integração), cobertura 98%; seed carregado em Postgres (200/300/1000, 80 devoluções), idempotente.
+- Riscos abertos: `save` sem lock otimista; busca textual com AND não casa cor; CORE e OPS agora em Claude Sonnet/Haiku.
+- Próxima fase: 04 — ferramentas MCP (Líder especifica os schemas primeiro).

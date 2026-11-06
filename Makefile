@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run mock
+.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run mock seed-db
 
 SEED_OUT ?= data/seed
 
@@ -58,8 +58,17 @@ seed: ## Regenera data/seed e valida a carga pelo mock_store
 	uv run python -m data.generators --seed 42 --out "$(SEED_OUT)"
 	uv run python scripts/validate_seed.py "$(SEED_OUT)"
 
-migrate: ## Aplica migracoes
-	@echo "[migrate] nao implementado nesta fase"
+seed-db: migrate ## Carga idempotente de data/seed no Postgres (roda 2x sem duplicar)
+	@set -a; \
+	if [ -f .env ]; then . ./.env; fi; \
+	set +a; \
+	uv run python scripts/load_seed.py --data-dir "$(SEED_OUT)"
+
+migrate: ## Aplica as migracoes do Alembic (DATABASE_URL ou POSTGRES_* do .env)
+	@set -a; \
+	if [ -f .env ]; then . ./.env; fi; \
+	set +a; \
+	uv run python -c "from commerce_agents.infrastructure.persistence.migrate import upgrade_to_head, sync_url_from_env; upgrade_to_head(sync_url_from_env())"
 
 lint: ## Roda ruff, format check, mypy --strict e import-linter
 	uv run ruff check .
