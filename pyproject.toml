@@ -16,6 +16,8 @@ dependencies = [
 dev = [
   "commitizen>=3.31",
   "detect-secrets>=1.5",
+  "fastapi>=0.115",
+  "httpx>=0.28",
   "hypothesis>=6.0",
   "import-linter>=2.0",
   "mypy==1.13.0",
@@ -24,6 +26,7 @@ dev = [
   "pytest-asyncio>=0.24",
   "pytest-cov>=6.0",
   "ruff==0.8.4",
+  "uvicorn>=0.32",
 ]
 
 [tool.uv]
@@ -35,7 +38,7 @@ packages = ["src/commerce_agents"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests"]
+src = ["src", "tests", "mock_store"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -44,7 +47,7 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.12"
 strict = true
 warn_unused_configs = true
-files = ["src"]
+files = ["src", "mock_store"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
@@ -66,7 +69,7 @@ source = ["commerce_agents"]
 show_missing = true
 
 [tool.importlinter]
-root_packages = ["commerce_agents"]
+root_packages = ["commerce_agents", "mock_store"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -78,6 +81,12 @@ layers = [
   "commerce_agents.application",
   "commerce_agents.domain",
 ]
+
+[[tool.importlinter.contracts]]
+name = "mock_store independente da aplicacao"
+type = "forbidden"
+source_modules = ["mock_store"]
+forbidden_modules = ["commerce_agents"]
 
 [[tool.importlinter.contracts]]
 name = "Domain independente de frameworks e I/O"

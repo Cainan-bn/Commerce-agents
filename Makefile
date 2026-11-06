@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run
+.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run mock
 
 help: ## Lista os alvos disponiveis
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -59,7 +59,7 @@ migrate: ## Aplica migracoes
 lint: ## Roda ruff, format check, mypy --strict e import-linter
 	uv run ruff check .
 	uv run ruff format --check .
-	uv run mypy --strict src
+	uv run mypy --strict src mock_store
 	uv run lint-imports
 
 build: ## Constroi a imagem Docker da aplicacao
@@ -91,3 +91,6 @@ load: ## Roda teste de carga k6
 
 run: ## Sobe a aplicacao localmente
 	@echo "[run] nao implementado nesta fase"
+
+mock: ## Sobe a API fake da loja (mock_store) na porta 8001
+	uv run uvicorn mock_store.main:app --port 8001
