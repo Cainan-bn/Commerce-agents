@@ -12,3 +12,9 @@
 - Métricas: `make lint` verde (3 contratos import-linter); `make test` 14 passed, 100% branch.
 - Riscos abertos: `REDIS_SOCKET_TIMEOUT_MS=0` no Langfuse é workaround de dev (reavaliar na Fase 10); pin exato do Langfuse 3.227.0 exige bump manual; Langfuse v3 é pesado para WSL2 (`.wslconfig` documentado no README).
 - Próxima fase: 02 — dados e seed (CORE e OPS).
+
+## Fase 02 — Dados e seed
+- Estado: concluída na branch `fase/02-dados-e-seed`; PR aberto, aguardando CI para merge.
+- Métricas: 55 testes; 54 cenários dev + 12 holdout (privados, manifesto no repo); seed determinístico (300/200/1000).
+- Riscos abertos: carga em PostgreSQL só na Fase 03; checkout compartilhado entre agentes (usar worktrees); Docker precisa estar ativo.
+- Próxima fase: 03 — domínio e persistência (OPS escreve testes red, CORE implementa).
