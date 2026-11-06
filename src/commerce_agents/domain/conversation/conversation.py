@@ -51,6 +51,12 @@ class Conversation:
             return self
         return replace(self, status=ConversationStatus.handoff)
 
+    def resume(self, at: datetime) -> Conversation:
+        """Devolve a conversa ao agente de IA após o handoff; idempotente em `open`."""
+        if self.status is ConversationStatus.closed:
+            raise InvalidStateTransition("conversa fechada não pode ser retomada")
+        return replace(self, status=ConversationStatus.open)
+
     def close(self, at: datetime) -> Conversation:
         """Fecha a conversa."""
         return replace(self, status=ConversationStatus.closed)
