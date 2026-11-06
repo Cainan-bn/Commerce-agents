@@ -25,3 +25,17 @@ class CustomerMemory(Protocol):
     async def get_preferences(self, customer_id: str) -> dict[str, str]: ...
 
     async def set_preference(self, customer_id: str, key: str, value: str) -> None: ...
+
+
+class IdempotencyRegistry(Protocol):
+    """Resultado já produzido por uma `idempotency_key` (ADR 0011).
+
+    `fingerprint` é o digest dos argumentos de ação; `result_json` é o JSON do resultado
+    (saída ou erro) a ser reproduzido num retry.
+    """
+
+    async def get(self, key: str) -> tuple[str, str] | None:
+        """Devolve `(fingerprint, result_json)` ou `None`."""
+        ...
+
+    async def put(self, key: str, fingerprint: str, result_json: str) -> None: ...

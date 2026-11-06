@@ -4,6 +4,9 @@ Fonte única de verdade para servidores MCP, executor de ferramentas, allowlists
 contrato. Mudar nomes ou campos exige atualizar `data/eval_scenarios` no mesmo PR.
 """
 
+import hashlib
+import json
+from collections.abc import Mapping
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal
@@ -338,3 +341,11 @@ AGENT_ALLOWLIST: dict[str, frozenset[str]] = {
         }
     ),
 }
+
+
+def action_digest(tool_name: str, arguments: Mapping[str, object]) -> str:
+    """Digest sha256 dos campos de ação, vinculando token e idempotência aos argumentos."""
+    spec = TOOL_SPECS[tool_name]
+    payload = {field: arguments[field] for field in spec.action_fields}
+    canonical = json.dumps([tool_name, payload], sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canonical.encode()).hexdigest()
