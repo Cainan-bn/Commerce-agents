@@ -24,3 +24,9 @@
 - Métricas: 252 testes (38 de integração), cobertura 98%; seed carregado em Postgres (200/300/1000, 80 devoluções), idempotente.
 - Riscos abertos: `save` sem lock otimista; busca textual com AND não casa cor; CORE e OPS agora em Claude Sonnet/Haiku.
 - Próxima fase: 04 — ferramentas MCP (Líder especifica os schemas primeiro).
+
+## Fase 04 — Ferramentas MCP
+- Estado: concluída na branch `fase/04-ferramentas-mcp`; PR aberto, aguardando CI para merge.
+- Métricas: 496 testes, cobertura 99%; ações irreversíveis só executam com token válido (uso único, Postgres) e idempotência; verificação de ponta a ponta entre processos feita pelo Líder.
+- Riscos abertos: fallback em memória sem DB explícito; purga de tokens; heurística de confirmação a medir nos evals.
+- Próxima fase: 05 — RAG de políticas (hybrid tsvector + pgvector + RRF).
