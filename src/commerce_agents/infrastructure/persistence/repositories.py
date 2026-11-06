@@ -66,7 +66,18 @@ class SqlOrderRepository:
 
     async def save(self, order: Order) -> None:
         async with self._session_factory() as session, session.begin():
-            await session.merge(order_to_model(order))
+            new = order_to_model(order)
+            existing = await session.get(OrderModel, order.order_id)
+            if existing is None:
+                session.add(new)
+            else:
+                # frete não pertence ao domínio Order: nunca é sobrescrito
+                existing.customer_id = new.customer_id
+                existing.status = new.status
+                existing.created_at = new.created_at
+                existing.delivered_at = new.delivered_at
+                existing.tracking_code = new.tracking_code
+                existing.total_cents = new.total_cents
             await session.execute(
                 delete(OrderItemModel).where(OrderItemModel.order_id == order.order_id)
             )

@@ -158,6 +158,7 @@ async def _insert_order_with_shipping(
                 method="express",
             )
         )
+        await session.flush()
         session.add(
             OrderItemModel(
                 order_id=order_id,
