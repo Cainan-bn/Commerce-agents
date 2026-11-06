@@ -18,7 +18,7 @@ ADR 0005 (híbrido + RRF), ADR 0012 (embeddings: `paraphrase-multilingual-MiniLM
 `PolicyIngestor(session_factory, embedder)` → `async ingest(policies_dir: Path) -> IngestionReport`. Idempotente: compara `content_hash` + `model_name`; só calcula embeddings dos chunks novos/alterados (ou todos se o modelo mudou); remove chunks que sumiram; tudo numa transação; `corpus_version` gravado em todos os chunks. Segunda execução: `embeddings_computed == 0`. Alvo `make ingest-policies`.
 
 ## Recuperação (`infrastructure/rag/retriever.py`)
-`HybridPolicyRetriever(session_factory, embedder, *, candidates=20, rrf_k=60, min_dense_similarity=0.30, reranker=None)` implementa `PolicyRetriever.retrieve(query, k=4)`:
+`HybridPolicyRetriever(session_factory, embedder, *, candidates=20, rrf_k=60, min_dense_similarity=0.45, reranker=None)` implementa `PolicyRetriever.retrieve(query, k=4)`:
 1. Lexical: `websearch_to_tsquery('portuguese', unaccent(query))`, top `candidates` por `ts_rank_cd`. Se a consulta lexical (AND) vier vazia, tenta OR dos termos (`plainto` com `|`), para não zerar consultas como "tênis preto".
 2. Denso: top `candidates` por distância de cosseno; descarta similaridade < `min_dense_similarity`.
 3. `rrf_fuse` → top `k` → `PolicyChunk(chunk_id, document, section, text, score=rrf, corpus_version)`.
@@ -28,3 +28,17 @@ ADR 0005 (híbrido + RRF), ADR 0012 (embeddings: `paraphrase-multilingual-MiniLM
 
 ## Qualidade (golden set)
 Dev: 8 cenários `POL-*` (`search_policies` + `must_mention`). Métrica `recall@4` ≥ 0.9 e `MRR` medidos por `make eval-rag` com o modelo real (marcador `embeddings`); no CI padrão, `HashingEmbedder` valida só a mecânica.
+
+## Calibração do limiar denso (`min_dense_similarity`)
+Medida com `paraphrase-multilingual-MiniLM-L12-v2` sobre o corpus de `data/policies`: similaridade de cosseno máxima entre a consulta e qualquer trecho.
+
+| Grupo | n | mín | máx |
+|---|---|---|---|
+| POL-* do golden set (uma palavra, ex.: "troca") | 8 | 0.311 | 0.657 |
+| Perguntas naturais de domínio | 5 | 0.616 | 0.725 |
+| Fora de domínio exigidas ("receita de bolo", "previsao do tempo em Lisboa", "como instalar python") | 3 | 0.093 | 0.343 |
+| Fora de domínio extras | 5 | 0.162 | 0.510 |
+
+Default **0.45**: folga de 0.107 sobre o pior fora de domínio exigido e de 0.166 abaixo da pior pergunta natural. Consultas de uma palavra abaixo do limiar ainda são atendidas pela busca lexical. Limitação conhecida: "cotação do dólar" (0.51) passa pelo denso; um critério relativo ao top fica para uma fase futura.
+
+O fallback OR do lexical exige que ao menos metade dos termos relevantes (stopwords não contam) case no trecho; sem esse piso uma palavra comum ("tempo") fazia consultas fora de domínio acharem trechos irrelevantes.
