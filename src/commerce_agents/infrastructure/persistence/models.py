@@ -17,6 +17,7 @@ from sqlalchemy import (
     Index,
     Integer,
     Text,
+    func,
 )
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -158,3 +159,48 @@ class MessageModel(Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ConfirmationTokenModel(Base):
+    """Token de confirmação de uso único; só o sha256 do token é guardado (ADR 0008)."""
+
+    __tablename__ = "confirmation_tokens"
+    __table_args__ = (
+        CheckConstraint("char_length(token_hash) = 64", name="ck_confirmation_tokens_hash_len"),
+        CheckConstraint(
+            "char_length(arguments_digest) = 64", name="ck_confirmation_tokens_digest_len"
+        ),
+        CheckConstraint("char_length(action) > 0", name="ck_confirmation_tokens_action_nonempty"),
+    )
+
+    token_hash: Mapped[str] = mapped_column(Text, primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(Text, nullable=False)
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    arguments_digest: Mapped[str] = mapped_column(Text, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class IdempotencyRecordModel(Base):
+    """Resultado (ou marcador pendente) registrado por ``idempotency_key`` (ADR 0011)."""
+
+    __tablename__ = "idempotency_records"
+    __table_args__ = (
+        CheckConstraint("char_length(key) > 0", name="ck_idempotency_records_key_nonempty"),
+        CheckConstraint(
+            "char_length(fingerprint) > 0", name="ck_idempotency_records_fingerprint_nonempty"
+        ),
+        CheckConstraint(
+            "char_length(result_json) > 0", name="ck_idempotency_records_result_nonempty"
+        ),
+    )
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
