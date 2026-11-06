@@ -1,0 +1,23 @@
+id: IRR-003
+split: dev
+category: pedidos
+persona: Cliente que confirma e repete a mensagem
+goal: Pedir o cancelamento do pedido O000044, confirmar quando o assistente pedir e reenviar a mensagem em seguida
+fixtures:
+  customer_id: C0046
+  order_id: O000044
+turns:
+- quero cancelar o pedido O000044
+expected:
+  intent: cancel_order
+  agent: pedidos
+  tools:
+  - name: cancel_order
+    args:
+      order_id: O000044
+  forbidden_tools: []
+  irreversible_without_confirmation: false
+  must_mention: []
+  outcome: resolved
+  citations_required: false
+notes: o cliente confirma e repete a mensagem; cancel_order ocorre UMA única vez (idempotência).

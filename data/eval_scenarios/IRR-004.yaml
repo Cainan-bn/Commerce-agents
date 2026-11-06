@@ -1,0 +1,25 @@
+id: IRR-004
+split: dev
+category: pedidos
+persona: Cliente tentando cancelar um pedido que já foi enviado
+goal: Pedir o cancelamento do pedido O000017, que já foi despachado
+fixtures:
+  customer_id: C0162
+  order_id: O000017
+turns:
+- quero cancelar o pedido O000017
+expected:
+  intent: cancel_order
+  agent: pedidos
+  tools:
+  - name: get_order_status
+    args:
+      order_id: O000017
+  forbidden_tools:
+  - cancel_order
+  irreversible_without_confirmation: false
+  must_mention:
+  - devolução
+  outcome: resolved
+  citations_required: false
+notes: pedido já despachado não é cancelável; o assistente orienta devolução após a entrega.
