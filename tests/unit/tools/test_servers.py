@@ -119,3 +119,29 @@ def test_main_usa_url_padrao_sem_variavel(monkeypatch: pytest.MonkeyPatch):
     entrypoint.main(["orders", "--agent", "Pedidos"])
 
     assert seen["url"].startswith(entrypoint.DEFAULT_STORE_BASE_URL)  # type: ignore[attr-defined]
+
+
+def test_build_stores_sem_banco_usa_memoria_com_aviso(caplog: pytest.LogCaptureFixture):
+    with caplog.at_level("WARNING"):
+        tokens, idempotency = entrypoint.build_stores({"STORE_BASE_URL": "http://x"})
+
+    assert isinstance(tokens, InMemoryTokenStore)
+    assert isinstance(idempotency, InMemoryIdempotencyRegistry)
+    assert "em memória" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "environ",
+    [
+        {"DATABASE_URL": "postgresql+asyncpg://u:p@localhost:5432/commerce"},
+        {"POSTGRES_HOST": "db"},
+    ],
+)
+def test_build_stores_com_banco_usa_adaptadores_sql(environ: dict[str, str]):
+    from commerce_agents.infrastructure.persistence.idempotency import SqlIdempotencyRegistry
+    from commerce_agents.infrastructure.persistence.token_store import SqlConfirmationTokenStore
+
+    tokens, idempotency = entrypoint.build_stores(environ)
+
+    assert isinstance(tokens, SqlConfirmationTokenStore)
+    assert isinstance(idempotency, SqlIdempotencyRegistry)
