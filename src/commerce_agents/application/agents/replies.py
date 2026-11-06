@@ -37,6 +37,18 @@ def no_source_found() -> str:
     )
 
 
+def identification_required() -> str:
+    return (
+        "Para consultar ou alterar pedidos preciso identificar você. Fale comigo pelo "
+        "WhatsApp cadastrado na loja ou pelo site, já logado. Posso ajudar com produtos, "
+        "frete e políticas por aqui."
+    )
+
+
+def handoff_waiting() -> str:
+    return "Recebi sua mensagem. Um atendente humano já foi acionado e responderá por aqui."
+
+
 _FAILURE_TEXTS: dict[ToolErrorCode, str] = {
     ToolErrorCode.NOT_CANCELABLE: "Esse pedido não pode mais ser cancelado.",
     ToolErrorCode.NOT_ELIGIBLE: "Esse item não é elegível para devolução.",

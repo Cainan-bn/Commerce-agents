@@ -9,6 +9,7 @@ description = "Sistema multi-agente de atendimento e vendas omnichannel (MVP)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+  "aiokafka>=0.15.0",
   "alembic>=1.14",
   "asyncpg>=0.30",
   "fastembed>=0.9.1",
@@ -69,6 +70,10 @@ python_version = "3.12"
 strict = true
 warn_unused_configs = true
 files = ["src", "mock_store", "data"]
+
+[[tool.mypy.overrides]]
+module = ["aiokafka", "aiokafka.*"]
+ignore_missing_imports = true  # aiokafka não publica stubs nem py.typed
 
 [tool.pytest.ini_options]
 minversion = "8.0"

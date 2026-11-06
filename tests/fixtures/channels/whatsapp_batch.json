@@ -1,0 +1,22 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "102290129340398",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {"display_phone_number": "15550001111", "phone_number_id": "106540352242922"},
+            "contacts": [{"profile": {"name": "Maria Araújo"}, "wa_id": "5511900000001"}],
+            "messages": [
+              {"from": "5511900000001", "id": "wamid.LOTE1", "timestamp": "1762430000", "type": "text", "text": {"body": "Primeira"}},
+              {"from": "5511900000001", "id": "wamid.LOTE2", "timestamp": "1762430010", "type": "text", "text": {"body": "Segunda"}}
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

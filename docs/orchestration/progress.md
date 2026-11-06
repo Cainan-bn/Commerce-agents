@@ -42,3 +42,9 @@
 - Métricas: 687 testes, cobertura 99%; posse do pedido, pré-checagem, confirmação, citações e handoff decididos em código; checkpoint Postgres com retomada validada.
 - Riscos abertos: sem provider real de LLM; handler de políticas ainda não ligado ao executor; UX de confirmação pendente.
 - Próxima fase: 07 — canais (WhatsApp/Instagram/web) e handoff humano.
+
+## Fase 07 — Canais e handoff
+- Estado: concluída na branch `fase/07-canais-e-handoff`; PR aberto, aguardando CI para merge.
+- Métricas: 826 testes + 13 do painel; pipeline webhook -> Redpanda -> grafo -> outbox -> WebSocket verificado ponta a ponta com broker real.
+- Riscos abertos: sem provider real de LLM; envios sem idempotência durável; painel com token estático.
+- Próxima fase: 08 — evals e ajuste de prompts (precisa de provider de LLM e chave: decisão do usuário).

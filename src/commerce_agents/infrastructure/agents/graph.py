@@ -31,6 +31,7 @@ from commerce_agents.application.agents.replies import (
     clarification,
     confirmation_outcome,
     handoff_notice,
+    identification_required,
     llm_unavailable,
     no_source_found,
     refusal,
@@ -67,6 +68,15 @@ logger = logging.getLogger(__name__)
 
 _MAX_TOKENS_PER_CALL = 600
 _MAX_HISTORY = 12
+_NEEDS_IDENTITY = frozenset(
+    {
+        Intent.ORDER_STATUS,
+        Intent.LIST_ORDERS,
+        Intent.CANCEL_ORDER,
+        Intent.RETURN_ELIGIBILITY,
+        Intent.RETURN_REQUEST,
+    }
+)
 _SPECIALISTS = frozenset(AGENT_TOOL_KEY)
 _AGENT_KEY_FOR_ALLOWLIST = {allow_key: key for key, allow_key in AGENT_TOOL_KEY.items()}
 
@@ -202,6 +212,8 @@ class _Nodes:
             logger.warning("supervisor: falha no roteador; usando ambiguous", exc_info=True)
             intent, confidence = Intent.AMBIGUOUS, 0.0
         agent = AGENT_FOR_INTENT[intent] if confidence >= MIN_CONFIDENCE else "geral"
+        if not state["customer_id"] and intent in _NEEDS_IDENTITY:
+            agent = "geral"  # conversa anônima não toca em pedidos (ADR 0014)
         update: dict[str, Any] = {
             "intent": intent.value,
             "intent_confidence": confidence,
@@ -213,7 +225,10 @@ class _Nodes:
         return update
 
     async def general(self, state: GraphState) -> dict[str, Any]:
-        refused = state.get("intent") == Intent.INJECTION_GUARD.value
+        intent = state.get("intent")
+        if not state["customer_id"] and intent in {i.value for i in _NEEDS_IDENTITY}:
+            return self._finish(state, identification_required())
+        refused = intent == Intent.INJECTION_GUARD.value
         return self._finish(state, refusal() if refused else clarification())
 
     # ------------------------------------------------------------------ especialista
