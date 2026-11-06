@@ -8,6 +8,7 @@ instagram_app_secret, instagram_verify_token, web_session_secret e panel_token.
 import hashlib
 import hmac
 import json
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -217,35 +218,98 @@ def test_ws_painel_com_token_recebe_novo_handoff():
     assert "web:s1" in json.dumps(message)
 
 
-def test_ws_web_recebe_so_a_propria_conversa():
+WEB_SECRET_FOR_WS = WEB_SECRET
+
+
+def _web_token(session_id: str, *, secret: str = WEB_SECRET_FOR_WS, expires_in: int = 3600) -> str:
+    """Token de sessão web válido para `session_id` (expiração relativa ao relógio real)."""
+    from commerce_agents.interfaces.webhooks.web import sign_web_session
+
+    expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
+    return sign_web_session(secret, session_id, "C0001", expires_at)
+
+
+def _ws_out(conversation_id: str, text: str) -> Any:
     from commerce_agents.application.dto.channels import OutboundMessageReady
     from commerce_agents.domain.conversation.channel import Channel
+
+    return OutboundMessageReady(
+        message_id=f"reply:{text}",
+        conversation_id=conversation_id,
+        channel=Channel.WEB,
+        recipient_external_id=conversation_id.split(":", 1)[1],
+        text=text,
+        source="agent",
+        created_at=BASE_TIME,
+    )
+
+
+def test_ws_web_recebe_so_a_propria_conversa():
     from commerce_agents.infrastructure.messaging.hub import PanelHub
 
     hub = PanelHub()
     app = _app(hub=hub)
 
-    def _out(conversation_id: str, text: str) -> OutboundMessageReady:
-        return OutboundMessageReady(
-            message_id=f"reply:{text}",
-            conversation_id=conversation_id,
-            channel=Channel.WEB,
-            recipient_external_id=conversation_id.split(":", 1)[1],
-            text=text,
-            source="agent",
-            created_at=BASE_TIME,
-        )
-
     with TestClient(app) as client:
         with (
-            client.websocket_connect("/ws/web/web:A") as ws_a,
-            client.websocket_connect("/ws/web/web:B") as ws_b,
+            client.websocket_connect(f"/ws/web/web:A?token={_web_token('A')}") as ws_a,
+            client.websocket_connect(f"/ws/web/web:B?token={_web_token('B')}") as ws_b,
         ):
-            client.portal.call(hub.send_to_conversation, _out("web:A", "so para A"))
-            client.portal.call(hub.send_to_conversation, _out("web:B", "so para B"))
+            client.portal.call(hub.send_to_conversation, _ws_out("web:A", "so para A"))
+            client.portal.call(hub.send_to_conversation, _ws_out("web:B", "so para B"))
             first_for_b = ws_b.receive_json()
             first_for_a = ws_a.receive_json()
 
     assert "so para B" in json.dumps(first_for_b)
     assert "so para A" in json.dumps(first_for_a)
     assert "so para A" not in json.dumps(first_for_b)
+
+
+def test_ws_web_sem_token_fecha_1008():
+    from starlette.websockets import WebSocketDisconnect
+
+    with TestClient(_app()) as client:
+        with pytest.raises(WebSocketDisconnect) as refused:
+            with client.websocket_connect("/ws/web/web:A"):
+                pass
+
+    assert refused.value.code == 1008
+
+
+def test_ws_web_token_adulterado_fecha_1008():
+    from starlette.websockets import WebSocketDisconnect
+
+    token = _web_token("A")
+    payload, _, digest = token.partition(".")
+    tampered = f"{payload}.{'0' if digest[0] != '0' else '1'}{digest[1:]}"
+
+    with TestClient(_app()) as client:
+        with pytest.raises(WebSocketDisconnect) as refused:
+            with client.websocket_connect(f"/ws/web/web:A?token={tampered}"):
+                pass
+
+    assert refused.value.code == 1008
+
+
+def test_ws_web_token_expirado_fecha_1008():
+    from starlette.websockets import WebSocketDisconnect
+
+    with TestClient(_app()) as client:
+        with pytest.raises(WebSocketDisconnect) as refused:
+            with client.websocket_connect(f"/ws/web/web:A?token={_web_token('A', expires_in=-60)}"):
+                pass
+
+    assert refused.value.code == 1008
+
+
+def test_token_de_a_nao_ouve_a_conversa_de_b_e_nada_chega():
+    from starlette.websockets import WebSocketDisconnect
+
+    from commerce_agents.infrastructure.messaging.hub import PanelHub
+
+    hub = PanelHub()
+    with TestClient(_app(hub=hub)) as client:
+        with pytest.raises(WebSocketDisconnect) as refused:
+            with client.websocket_connect(f"/ws/web/web:B?token={_web_token('A')}"):
+                pass
+        assert refused.value.code == 1008

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import replace
 from datetime import datetime
 from typing import Any, Literal
 
@@ -94,7 +93,7 @@ class InMemoryHandoffRepository:
         record = self.records.get(handoff_id)
         if record is None or record.status is not HandoffStatus.OPEN:
             return None
-        claimed = replace(record, status=HandoffStatus.CLAIMED, claimed_by=agent)
+        claimed = record.model_copy(update={"status": HandoffStatus.CLAIMED, "claimed_by": agent})
         self.records[handoff_id] = claimed
         return claimed
 
@@ -102,7 +101,7 @@ class InMemoryHandoffRepository:
         record = self.records.get(handoff_id)
         if record is None or record.status is HandoffStatus.CLOSED:
             return None
-        closed = replace(record, status=HandoffStatus.CLOSED, closed_at=at)
+        closed = record.model_copy(update={"status": HandoffStatus.CLOSED, "closed_at": at})
         self.records[handoff_id] = closed
         return closed
 
