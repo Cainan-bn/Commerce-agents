@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval load run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
+.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick load run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
 
 SEED_OUT ?= data/seed
 
@@ -109,8 +109,11 @@ test-integration: ## Roda testes de integracao (aceita suite vazia)
 test-e2e: ## Roda testes end-to-end
 	@echo "[test-e2e] nao implementado nesta fase"
 
-eval: ## Roda a suite de avaliacao
-	@echo "[eval] nao implementado nesta fase"
+eval: ## Roda a suite de avaliacao dev completa (LABEL=nome; grava reports/eval)
+	uv run python -m evals run --label "$(or $(LABEL),local)" --subset all --split dev
+
+eval-quick: ## Roda o subset rapido de 12 cenarios para PR (LABEL=nome)
+	uv run python -m evals run --label "$(or $(LABEL),quick)" --subset quick --split dev
 
 load: ## Roda teste de carga k6
 	@echo "[load] nao implementado nesta fase"
