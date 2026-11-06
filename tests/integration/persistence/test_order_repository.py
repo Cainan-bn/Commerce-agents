@@ -7,6 +7,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from commerce_agents.domain.order.status import OrderStatus
+from commerce_agents.infrastructure.persistence.models import (
+    CustomerModel,
+    OrderItemModel,
+    OrderModel,
+)
 from commerce_agents.infrastructure.persistence.repositories import (
     SqlCustomerRepository,
     SqlOrderRepository,
@@ -123,3 +128,104 @@ async def test_list_by_customer_is_sorted_and_isolated(
 
     assert [view.order_id for view in views] == ["O000002", "O000001"]
     assert all(view.customer_id == "C0001" for view in views)
+
+
+async def _insert_order_with_shipping(
+    session_factory: async_sessionmaker[AsyncSession],
+    order_id: str = "O000001",
+) -> None:
+    async with session_factory() as session:
+        session.add(
+            CustomerModel(
+                customer_id="C0001",
+                name="Maria Fictícia",
+                email="maria@example.com",
+                phone="+5511 90000-0001",
+                created_at=BASE_TIME,
+            )
+        )
+        session.add(
+            OrderModel(
+                order_id=order_id,
+                customer_id="C0001",
+                status=OrderStatus.pending_payment.value,
+                created_at=BASE_TIME,
+                delivered_at=None,
+                tracking_code=None,
+                total_cents=1000,
+                carrier="Correios",
+                cep="01310-100",
+                method="express",
+            )
+        )
+        session.add(
+            OrderItemModel(
+                order_id=order_id,
+                position=0,
+                sku="SKU-1",
+                qty=1,
+                unit_price_cents=1000,
+            )
+        )
+        await session.commit()
+
+
+async def _shipping_row(
+    session_factory: async_sessionmaker[AsyncSession], order_id: str
+) -> tuple[str, str, str, str, str | None]:
+    async with session_factory() as session:
+        row = (
+            await session.execute(
+                text(
+                    "SELECT carrier, cep, method, status, tracking_code "
+                    "FROM orders WHERE order_id = :order_id"
+                ),
+                {"order_id": order_id},
+            )
+        ).one()
+    return (row.carrier, row.cep, row.method, row.status, row.tracking_code)
+
+
+async def test_save_preserves_shipping_on_status_change(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _insert_order_with_shipping(session_factory)
+    repository = SqlOrderRepository(session_factory)
+    order = await repository.find("O000001")
+    assert order is not None
+
+    cancelled = order.cancel(BASE_TIME)
+    await repository.save(cancelled)
+
+    carrier, cep, method, status, _ = await _shipping_row(session_factory, "O000001")
+    assert (carrier, cep, method) == ("Correios", "01310-100", "express")
+    assert status == OrderStatus.cancelled.value
+
+
+async def test_save_preserves_shipping_on_tracking_update(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _insert_order_with_shipping(session_factory)
+    repository = SqlOrderRepository(session_factory)
+    order = await repository.find("O000001")
+    assert order is not None
+
+    tracked = order.with_tracking("TH999999999BR")
+    await repository.save(tracked)
+
+    carrier, cep, method, _, tracking_code = await _shipping_row(session_factory, "O000001")
+    assert (carrier, cep, method) == ("Correios", "01310-100", "express")
+    assert tracking_code == "TH999999999BR"
+
+
+async def test_save_new_order_still_works(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    customers = SqlCustomerRepository(session_factory)
+    await customers.save(make_customer(customer_id="C0001"))
+    repository = SqlOrderRepository(session_factory)
+    order = make_order(order_id="O000002", customer_id="C0001")
+
+    await repository.save(order)
+
+    assert await repository.find(order.order_id) == order
