@@ -42,6 +42,7 @@ CONFIRMATION_REPLY = "sim"
 _HIDDEN_ARGS = frozenset({"confirmation_token", "idempotency_key", "conversation_id"})
 _TOOL_RESULT = re.compile(r"<dados ferramenta>(.*?)</dados>", re.DOTALL)
 _NOT_EXECUTED = frozenset({"not_allowed", "invalid_argument"})
+_UPSTREAM_CODES = frozenset({"upstream_timeout", "upstream_unavailable", "upstream_error"})
 
 Publish = Callable[[StrictModel], Awaitable[None]]
 
@@ -101,6 +102,8 @@ class _Recorder:
         pending.ok = code is None
         pending.error_code = None if code is None else str(code)
         pending.executed = code not in _NOT_EXECUTED
+        if code in _UPSTREAM_CODES:
+            self.fail(f"ferramenta {pending.name}", RuntimeError(str(code)))
 
     def on_llm_result(self, result: LLMResult, latency_ms: int) -> None:
         self.llm_calls.append(
