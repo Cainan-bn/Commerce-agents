@@ -37,6 +37,7 @@ dev = [
   "pytest-asyncio>=0.24",
   "pytest-cov>=6.0",
   "pyyaml>=6.0",
+  "types-pyyaml>=6.0",
   "ruff==0.8.4",
   "testcontainers[postgres]>=4.8",
   "uvicorn>=0.32",
@@ -60,7 +61,7 @@ message_template = "{{change_type}}{% if scope %}({{scope}}){% endif %}: {{subje
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests", "mock_store", "data"]
+src = ["src", "tests", "mock_store", "data", "evals"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -69,7 +70,7 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.12"
 strict = true
 warn_unused_configs = true
-files = ["src", "mock_store", "data"]
+files = ["src", "mock_store", "data", "evals"]
 
 [[tool.mypy.overrides]]
 module = ["aiokafka", "aiokafka.*"]
@@ -96,7 +97,7 @@ source = ["commerce_agents"]
 show_missing = true
 
 [tool.importlinter]
-root_packages = ["commerce_agents", "mock_store"]
+root_packages = ["commerce_agents", "mock_store", "evals"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -114,6 +115,12 @@ name = "mock_store independente da aplicacao"
 type = "forbidden"
 source_modules = ["mock_store"]
 forbidden_modules = ["commerce_agents"]
+
+[[tool.importlinter.contracts]]
+name = "src nao importa o ferramental de avaliacao"
+type = "forbidden"
+source_modules = ["commerce_agents"]
+forbidden_modules = ["evals"]
 
 [[tool.importlinter.contracts]]
 name = "Domain independente de frameworks e I/O"
