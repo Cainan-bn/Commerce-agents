@@ -33,6 +33,7 @@ async def test_cenario_de_status_simples_gera_trace_com_turno_e_ferramenta():
         tools=[("get_order_status", {"order_id": "O000001"})],
         must_mention=["a caminho"],
     )
+    scn.fixtures = {"customer_id": "C0001"}  # dono de O000001 no StoreStub
 
     trace = await _harness().run_scenario(scn, deps)
 
@@ -48,6 +49,7 @@ async def test_cliente_simulado_confirma_irreversivel_esperado():
     scn = scenario(
         scenario_id="IRR-001", category="pedidos", tools=[("cancel_order", {"order_id": "O000014"})]
     )
+    scn.fixtures = {"customer_id": "C0001"}  # dono de O000014 no StoreStub
 
     trace = await _harness().run_scenario(scn, deps)
 
@@ -102,14 +104,28 @@ async def test_customer_id_da_fixture_vira_o_canal_autenticado():
     assert trace.tool_calls[0].ok is True
 
 
-async def test_sem_fixture_a_conversa_e_anonima_e_nao_le_pedido_alheio():
-    deps = make_eval_deps([_tool("get_order_status", {"order_id": "O000001"}), _final("ok")])
+async def test_sem_fixture_a_conversa_e_anonima_sem_ferramentas_e_com_identificacao():
+    from commerce_agents.application.agents.replies import identification_required
+
+    deps = make_eval_deps([])  # anônimo: intenção de pedido não chega ao especialista
     scn = scenario(tools=[("get_order_status", {"order_id": "O000001"})])
     scn.fixtures = {}
 
     trace = await _harness().run_scenario(scn, deps)
 
+    assert trace.tool_calls == []
+    assert trace.turns[-1].reply == identification_required()
+
+
+async def test_dono_diferente_do_pedido_vira_not_found_no_trace():
+    deps = make_eval_deps([_tool("get_order_status", {"order_id": "O000001"}), _final("ok")])
+    scn = scenario(tools=[("get_order_status", {"order_id": "O000001"})])
+    scn.fixtures = {"customer_id": "C0002"}  # O000001 pertence a C0001
+
+    trace = await _harness().run_scenario(scn, deps)
+
     assert trace.tool_calls[0].ok is False
+    assert trace.tool_calls[0].error_code == "not_found"
 
 
 async def test_reset_do_mock_store_entre_cenarios():
