@@ -1,9 +1,10 @@
 """Calibração do juiz: amostra para rotulagem humana e concordância rótulo × juiz."""
 
+import asyncio
 import json
 import random
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -91,22 +92,49 @@ class Calibration:
         return [p for p in self.pairs if abs(p[1] - p[2]) > TOLERANCE]
 
 
+DEFAULT_CONCURRENCY = 4
+
+Progress = Callable[[int, int, str, bool], None]
+
+
 async def calibrate(
     provider: LLMProvider,
     traces: Sequence[Mapping[str, Any]],
     labels: Sequence[Mapping[str, Any]],
+    *,
+    concurrency: int = DEFAULT_CONCURRENCY,
+    on_progress: Progress | None = None,
 ) -> Calibration:
+    """Julga as conversas rotuladas com concorrência limitada; a ordem dos rótulos é mantida.
+
+    `on_progress(done, total, scenario_id, judged)` é chamado a cada conversa concluída.
+    """
     by_id = {str(row["id"]): row for row in traces}
-    pairs: list[tuple[str, int, int]] = []
-    unjudged: list[str] = []
-    for label in labels:
+    gate = asyncio.Semaphore(concurrency)
+    done = 0
+
+    async def one(label: Mapping[str, Any]) -> int | None:
+        nonlocal done
         scenario_id = str(label["id"])
         row = by_id.get(scenario_id)
-        result = None if row is None else await judge_trace(provider, trace_from_row(row))
-        if result is None or result.score is None:
-            unjudged.append(scenario_id)
-            continue
-        pairs.append((scenario_id, int(label["overall"]), result.score.overall))
+        score: int | None = None
+        if row is not None:
+            async with gate:
+                result = await judge_trace(provider, trace_from_row(row))
+            score = None if result.score is None else result.score.overall
+        done += 1
+        if on_progress is not None:
+            on_progress(done, len(labels), scenario_id, score is not None)
+        return score
+
+    scores = await asyncio.gather(*(one(label) for label in labels))
+    pairs: list[tuple[str, int, int]] = []
+    unjudged: list[str] = []
+    for label, score in zip(labels, scores, strict=True):
+        if score is None:
+            unjudged.append(str(label["id"]))
+        else:
+            pairs.append((str(label["id"]), int(label["overall"]), score))
     return Calibration(pairs=pairs, unjudged=unjudged)
 
 

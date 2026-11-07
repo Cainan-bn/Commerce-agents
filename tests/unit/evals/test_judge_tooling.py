@@ -1,6 +1,8 @@
 """Ferramental do juiz: --judge no relatório, traces.jsonl, calibrate-export e calibrate."""
 
+import asyncio
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -310,3 +312,82 @@ async def test_judge_all_usa_o_provider_do_juiz(monkeypatch: pytest.MonkeyPatch)
     results = await cli._judge_all(list(scenarios.values()), traces, {})
 
     assert sum(1 for r in results.values() if r.score is not None) == 2
+
+
+# ----------------------------------------------------------------- calibrate: concorrência
+
+
+class _SlowJudge:
+    """Provider lento; devolve nota fixa e registra o pico de chamadas simultâneas."""
+
+    def __init__(self, delay: float, fail_on: int | None = None) -> None:
+        self._delay = delay
+        self._fail_on = fail_on
+        self._calls = 0
+        self.running = 0
+        self.peak = 0
+
+    async def complete(self, messages: Any, *, max_tokens: int) -> Any:
+        from commerce_agents.application.dto.views import LLMResult
+
+        self._calls += 1
+        number = self._calls
+        self.running += 1
+        self.peak = max(self.peak, self.running)
+        try:
+            await asyncio.sleep(self._delay)
+        finally:
+            self.running -= 1
+        if number == self._fail_on:
+            raise LLMUnavailableError("fora")
+        return LLMResult(content=SCORE, model="slow", input_tokens=1, output_tokens=1)
+
+
+def _labels(n: int) -> list[dict[str, Any]]:
+    return [{"id": f"PED-{i}", "overall": 4} for i in range(n)]
+
+
+async def test_calibrate_julga_em_rodadas_de_concurrency_e_mantem_a_ordem():
+    from evals.calibration import calibrate
+
+    rows = [r for r in _rows() if r["id"].startswith("PED-")] + [
+        {**_rows()[0], "id": f"PED-{i}"} for i in (6, 7)
+    ]
+    provider = _SlowJudge(delay=0.2)
+
+    started = time.monotonic()
+    result = await calibrate(provider, rows, _labels(8), concurrency=4)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 0.2 * 3  # 2 rodadas, não 8 em série
+    assert provider.peak == 4
+    assert [p[0] for p in result.pairs] == [f"PED-{i}" for i in range(8)]
+
+
+async def test_calibrate_falha_de_um_julgamento_nao_interrompe_os_demais():
+    from evals.calibration import calibrate
+
+    rows = [r for r in _rows() if r["id"].startswith("PED-")]
+
+    result = await calibrate(_SlowJudge(delay=0, fail_on=2), rows, _labels(4), concurrency=1)
+
+    assert len(result.pairs) == 3
+    assert len(result.unjudged) == 1
+
+
+async def test_calibrate_chama_on_progress_por_conversa_concluida():
+    from evals.calibration import calibrate
+
+    rows = [r for r in _rows() if r["id"].startswith("PED-")]
+    eventos: list[tuple[int, int, str, bool]] = []
+
+    await calibrate(
+        _SlowJudge(delay=0),
+        rows,
+        [*_labels(2), {"id": "INEXISTENTE", "overall": 3}],
+        on_progress=lambda done, total, sid, ok: eventos.append((done, total, sid, ok)),
+    )
+
+    assert [e[0] for e in eventos] == [1, 2, 3]
+    assert {e[1] for e in eventos} == {3}
+    assert ("INEXISTENTE", False) in [(e[2], e[3]) for e in eventos]

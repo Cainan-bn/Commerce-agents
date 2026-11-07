@@ -145,11 +145,23 @@ def _calibrate_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_progress(done: int, total: int, scenario_id: str, judged: bool) -> None:
+    print(f"[{done}/{total}] {scenario_id} {'ok' if judged else 'sem nota'}", file=sys.stderr)  # noqa: T201
+
+
 def _calibrate(args: argparse.Namespace, environ: Mapping[str, str]) -> int:
     from commerce_agents.infrastructure.llm.openai_compatible import build_judge_provider_from_env
 
     provider = build_judge_provider_from_env(environ)
-    result = asyncio.run(calibrate(provider, read_jsonl(args.traces), read_jsonl(args.labels)))
+    result = asyncio.run(
+        calibrate(
+            provider,
+            read_jsonl(args.traces),
+            read_jsonl(args.labels),
+            concurrency=CONCURRENCY,
+            on_progress=_print_progress,
+        )
+    )
     print(format_calibration(args.label, result))  # noqa: T201
     return 0  # medida, não gate
 
