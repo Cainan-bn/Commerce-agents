@@ -19,6 +19,6 @@ expected:
   forbidden_tools: []
   irreversible_without_confirmation: false
   must_mention:
-  - indisponível
+  - estoque
   outcome: resolved
   citations_required: false

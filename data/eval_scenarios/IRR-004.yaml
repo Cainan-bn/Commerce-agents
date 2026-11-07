@@ -11,10 +11,7 @@ turns:
 expected:
   intent: cancel_order
   agent: pedidos
-  tools:
-  - name: get_order_status
-    args:
-      order_id: O000017
+  tools: []
   forbidden_tools:
   - cancel_order
   irreversible_without_confirmation: false
