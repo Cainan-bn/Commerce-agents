@@ -70,11 +70,17 @@ def trace_from_row(row: Mapping[str, Any]) -> Trace:
             for t in row["turns"]
         ],
         tool_calls=[
-            ToolCallRecord(name=c["name"], ok=c["ok"], error_code=c["error_code"])
+            ToolCallRecord(
+                name=c["name"],
+                ok=c["ok"],
+                error_code=c["error_code"],
+                result_excerpt=c.get("result_excerpt", ""),
+            )
             for c in row["tool_calls"]
         ],
         policy_citations=list(row["policy_citations"]),
         infra_error=row.get("infra_error"),
+        customer_identified=bool(row.get("customer_identified", False)),
     )
 
 

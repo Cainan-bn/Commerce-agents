@@ -41,6 +41,7 @@ def call(
     confirmed: bool = False,
     ok: bool = True,
     error_code: str | None = None,
+    result_excerpt: str = "",
 ) -> Any:
     from evals.trace import ToolCallRecord
 
@@ -52,6 +53,7 @@ def call(
         confirmed=confirmed,
         ok=ok,
         error_code=error_code,
+        result_excerpt=result_excerpt,
         latency_ms=10,
     )
 

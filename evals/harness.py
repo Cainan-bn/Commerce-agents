@@ -41,6 +41,8 @@ MAX_TURNS = 8
 CONFIRMATION_REPLY = "sim"
 _HIDDEN_ARGS = frozenset({"confirmation_token", "idempotency_key", "conversation_id"})
 _TOOL_RESULT = re.compile(r"<dados ferramenta>(.*?)</dados>", re.DOTALL)
+_EXCERPT_CHARS = 600
+_HIDDEN_RESULT_KEYS = _HIDDEN_ARGS | {"api_key"}
 _NOT_EXECUTED = frozenset({"not_allowed", "invalid_argument"})
 _UPSTREAM_CODES = frozenset({"upstream_timeout", "upstream_unavailable", "upstream_error"})
 
@@ -65,6 +67,19 @@ class EvalDeps:
     temperature: float = 0.0
     llm_provider_name: str = ""
     api_key: str = ""
+
+
+def _without_hidden(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _without_hidden(v) for k, v in value.items() if k not in _HIDDEN_RESULT_KEYS}
+    if isinstance(value, list):
+        return [_without_hidden(v) for v in value]
+    return value
+
+
+def _excerpt(body: Any) -> str:
+    compact = json.dumps(_without_hidden(body), ensure_ascii=False, separators=(",", ":"))
+    return compact[:_EXCERPT_CHARS]
 
 
 class _Recorder:
@@ -98,6 +113,7 @@ class _Recorder:
             body = json.loads(match.group(1))
         except ValueError:
             return
+        pending.result_excerpt = _excerpt(body)
         code = body.get("code") if isinstance(body, dict) and body.get("ok") is False else None
         pending.ok = code is None
         pending.error_code = None if code is None else str(code)
@@ -283,7 +299,7 @@ async def run_scenario(scenario: EvalScenario, deps: EvalDeps) -> Trace:
     confirmable = {t.name for t in expected.tools} & IRREVERSIBLE_TOOLS
     cost_before = getattr(deps.llm, "total_cost_usd", None)
 
-    trace = Trace(scenario_id=scenario.id)
+    trace = Trace(scenario_id=scenario.id, customer_identified=bool(customer_id))
     queue = deque(scenario.turns)
     sent = 0
     try:

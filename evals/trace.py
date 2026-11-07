@@ -29,6 +29,7 @@ class ToolCallRecord(_Record):
     confirmed: bool = False
     ok: bool = True
     error_code: str | None = None
+    result_excerpt: str = ""
     latency_ms: int = 0
 
 
@@ -50,3 +51,4 @@ class Trace(_Record):
     retrieved_chunks: list[str] = Field(default_factory=list)
     cost_usd: float | None = None
     infra_error: str | None = None
+    customer_identified: bool = False

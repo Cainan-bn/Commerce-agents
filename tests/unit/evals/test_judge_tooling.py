@@ -125,7 +125,9 @@ async def test_traces_jsonl_nao_tem_token_argumentos_nem_expected(tmp_path: Path
     assert "confirmation_token" not in texto
     assert "order_id" not in texto
     first = json.loads(lines[0])
-    assert first["tool_calls"] == [{"name": "get_order_status", "ok": True, "error_code": None}]
+    assert first["tool_calls"] == [
+        {"name": "get_order_status", "ok": True, "error_code": None, "result_excerpt": ""}
+    ]
     assert first["judge"]["overall"] == 4
     assert json.loads(lines[2])["judge"] == {"skipped_reason": "not_resolved"}
     assert json.loads(lines[2])["outcome"] == "handoff"

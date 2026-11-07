@@ -187,10 +187,17 @@ def build_trace_rows(
                 for t in trace.turns
             ],
             "tool_calls": [
-                {"name": c.name, "ok": c.ok, "error_code": c.error_code} for c in trace.tool_calls
+                {
+                    "name": c.name,
+                    "ok": c.ok,
+                    "error_code": c.error_code,
+                    "result_excerpt": c.result_excerpt,
+                }
+                for c in trace.tool_calls
             ],
             "policy_citations": trace.policy_citations,
             "infra_error": trace.infra_error,
+            "customer_identified": trace.customer_identified,
         }
         result = None if judge is None else judge.get(scenario_id)
         if result is not None:
