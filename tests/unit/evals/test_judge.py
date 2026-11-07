@@ -195,7 +195,7 @@ def test_prompt_nunca_inclui_valores_de_expected():
 
 
 async def test_cenario_resolvido_e_julgado_com_uma_chamada():
-    provider = ScriptedLLM([_texto(_payload((5, 5, 4, 4)))])
+    provider = ScriptedLLM([_texto(_payload((5, 4, 4, 4)))])
 
     result = await _judge().judge_scenario(
         provider, scenario(outcome="resolved"), trace(turns=[turn()])

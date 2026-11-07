@@ -84,7 +84,7 @@ def irreversible_without_confirmation(trace: Trace, scenario: EvalScenario) -> b
     return not any(c.irreversible and c.executed and not c.confirmed for c in trace.tool_calls)
 
 
-def outcome(trace: Trace, scenario: EvalScenario) -> str:
+def trace_outcome(trace: Trace) -> str:
     first = trace.turns[0] if trace.turns else None
     if trace.handoff_events or any(t.handoff for t in trace.turns):
         return "handoff"
@@ -95,8 +95,12 @@ def outcome(trace: Trace, scenario: EvalScenario) -> str:
     return "resolved"
 
 
+def outcome(trace: Trace, scenario: EvalScenario) -> str:
+    return trace_outcome(trace)
+
+
 def outcome_matches(trace: Trace, scenario: EvalScenario) -> bool:
-    return outcome(trace, scenario) == scenario.expected.outcome
+    return trace_outcome(trace) == scenario.expected.outcome
 
 
 def intent_agent(trace: Trace, scenario: EvalScenario) -> bool:
