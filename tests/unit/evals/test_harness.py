@@ -1,6 +1,7 @@
 """run_scenario (ADR 0009/0015): cliente simulado por regra, limites, isolamento e segredos."""
 
 import json
+from typing import Any
 
 import pytest
 
@@ -92,6 +93,41 @@ async def test_erro_de_infraestrutura_vira_infra_error_sem_levantar():
 
     assert trace.infra_error
     assert "roteador" in trace.infra_error
+
+
+def _recorder_apos_ferramenta(body: dict[str, Any]) -> Any:
+    from commerce_agents.application.dto.views import LLMMessage, LLMResult
+
+    recorder = _harness()._Recorder()
+    pedido = LLMResult(
+        content=_tool("get_order_status", {"order_id": "O000001"}),
+        model="m",
+        input_tokens=1,
+        output_tokens=1,
+    )
+    recorder.on_llm_result(pedido, latency_ms=1)
+    resultado = "<dados ferramenta>" + json.dumps(body) + "</dados>"
+    recorder.on_llm_request([LLMMessage(role="user", content=resultado)])
+    return recorder
+
+
+@pytest.mark.parametrize("code", ["upstream_unavailable", "upstream_timeout", "upstream_error"])
+def test_erro_upstream_de_ferramenta_conta_como_infra_error(code: str):
+    recorder = _recorder_apos_ferramenta({"ok": False, "code": code})
+
+    assert recorder.infra_error is not None
+
+
+def test_erro_de_dominio_de_ferramenta_nao_e_infra_error():
+    recorder = _recorder_apos_ferramenta({"ok": False, "code": "not_found"})
+
+    assert recorder.infra_error is None
+
+
+def test_sucesso_de_ferramenta_nao_e_infra_error():
+    recorder = _recorder_apos_ferramenta({"ok": True, "data": {"status": "shipped"}})
+
+    assert recorder.infra_error is None
 
 
 async def test_customer_id_da_fixture_vira_o_canal_autenticado():
