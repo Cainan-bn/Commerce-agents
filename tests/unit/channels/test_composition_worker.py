@@ -248,3 +248,18 @@ def test_main_interpreta_o_modo(monkeypatch: pytest.MonkeyPatch):
 
 def test_utcnow_devolve_datetime_com_fuso():
     assert composition.utcnow().tzinfo is not None
+
+
+def test_llm_from_env_sem_modelo_usa_o_placeholder():
+    assert isinstance(composition.llm_from_env({}), composition.UnconfiguredLLM)
+
+
+def test_llm_from_env_com_modelo_usa_o_provider_configurado():
+    from commerce_agents.infrastructure.llm.openai_compatible import OpenAICompatibleProvider
+
+    api_key = "chave-de-teste"  # pragma: allowlist secret
+    provider = composition.llm_from_env(
+        {"LLM_PROVIDER": "openai-compatible", "LLM_MODEL": "m", "LLM_API_KEY": api_key}
+    )
+
+    assert isinstance(provider, OpenAICompatibleProvider)
