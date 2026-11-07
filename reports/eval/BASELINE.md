@@ -23,3 +23,11 @@ re-medição `baseline v1.1` (mesmos prompts):
 
 Os demais itens com falha (roteador em perguntas de política anônimas, pedido de SKU/número do
 pedido já conhecidos, AMB-*) são achados reais do agente, alvo da tarefa 08-05.
+
+## Baseline v1.1 (mesmos prompts, defeitos de medição corrigidos)
+
+Relatório: `20261107-165513-baseline-v1-1.md` (código `54e9d11`, custo US$ 0,23). Substitui o v1 como
+referência para o tuning. `scenario_pass` 52,9% (49 cenários válidos); gate de irreversíveis e
+`leaks` em 100%. 3 cenários com erro de infraestrutura do transporte (POL-002 e POL-008:
+opencode código 1; POS-001: timeout), fora das taxas. As falhas de infra variam entre runs
+(no v1 foram POL-004 e POS-001): é instabilidade do `opencode`, tratada na Fase 09.
