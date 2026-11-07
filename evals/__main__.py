@@ -1,4 +1,4 @@
-"""CLI: `python -m evals run --label X [--subset all|quick] [--split dev|holdout]`."""
+"""CLI: `python -m evals run|calibrate-export|calibrate` (ver `--help` de cada subcomando)."""
 
 import argparse
 import asyncio
@@ -13,9 +13,17 @@ from pathlib import Path
 import yaml
 from data.eval_scenarios_schema import EvalScenario
 
+from evals.calibration import (
+    calibrate,
+    format_calibration,
+    read_jsonl,
+    sample_for_labeling,
+    write_jsonl,
+)
 from evals.harness import build_real_deps, run_scenario
+from evals.judge import JudgeResult, judge_scenario
 from evals.metrics import aggregate, evaluate
-from evals.report import build_report, write_report
+from evals.report import build_report, build_trace_rows, write_report, write_traces
 from evals.subsets import QUICK_SUBSET
 from evals.trace import Trace
 
@@ -33,6 +41,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     run.add_argument("--label", required=True)
     run.add_argument("--subset", choices=("all", "quick"), default="all")
     run.add_argument("--split", choices=("dev", "holdout"), default="dev")
+    run.add_argument(
+        "--judge", action="store_true", help="acrescenta o juiz LLM (sinal secundário)"
+    )
+    export = sub.add_parser("calibrate-export", help="amostra conversas para rotulagem humana")
+    export.add_argument("--traces", type=Path, required=True)
+    export.add_argument("--n", type=int, default=30)
+    export.add_argument("--out", type=Path, required=True)
+    calib = sub.add_parser("calibrate", help="concordância entre os rótulos humanos e o juiz")
+    calib.add_argument("--traces", type=Path, required=True)
+    calib.add_argument("--labels", type=Path, required=True)
+    calib.add_argument("--label", required=True)
     return parser.parse_args(argv)
 
 
@@ -104,14 +123,50 @@ async def _run_all(scenarios: list[EvalScenario], environ: Mapping[str, str]) ->
     return dict(await asyncio.gather(*(one(s) for s in scenarios)))
 
 
+async def _judge_all(
+    scenarios: list[EvalScenario], traces: dict[str, Trace], environ: Mapping[str, str]
+) -> dict[str, JudgeResult]:
+    from commerce_agents.infrastructure.llm.openai_compatible import build_judge_provider_from_env
+
+    provider = build_judge_provider_from_env(environ)
+    gate = asyncio.Semaphore(CONCURRENCY)
+
+    async def one(scenario: EvalScenario) -> tuple[str, JudgeResult]:
+        async with gate:
+            return scenario.id, await judge_scenario(provider, scenario, traces[scenario.id])
+
+    return dict(await asyncio.gather(*(one(s) for s in scenarios)))
+
+
+def _calibrate_export(args: argparse.Namespace) -> int:
+    rows = sample_for_labeling(read_jsonl(args.traces), args.n)
+    write_jsonl(rows, args.out)
+    print(f"{len(rows)} conversas para rotular: {args.out}")  # noqa: T201
+    return 0
+
+
+def _calibrate(args: argparse.Namespace, environ: Mapping[str, str]) -> int:
+    from commerce_agents.infrastructure.llm.openai_compatible import build_judge_provider_from_env
+
+    provider = build_judge_provider_from_env(environ)
+    result = asyncio.run(calibrate(provider, read_jsonl(args.traces), read_jsonl(args.labels)))
+    print(format_calibration(args.label, result))  # noqa: T201
+    return 0  # medida, não gate
+
+
 def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = None) -> int:
     env = os.environ if environ is None else environ
     args = parse_args(argv)
+    if args.command == "calibrate-export":
+        return _calibrate_export(args)
+    if args.command == "calibrate":
+        return _calibrate(args, env)
     check_split_allowed(args.split, environ=env, repo_root=REPO_ROOT)
     scenarios = load_scenarios(args.split, args.subset, environ=env)
     traces = asyncio.run(_run_all(scenarios, env))
     by_id = {s.id: s for s in scenarios}
     results = [evaluate(traces[s.id], s) for s in scenarios]
+    judged = asyncio.run(_judge_all(scenarios, traces, env)) if args.judge else None
     report = build_report(
         label=args.label,
         commit=_commit(),
@@ -122,9 +177,15 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
         results=results,
         scenarios=by_id,
         traces=traces,
+        judge=judged,
     )
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     paths = write_report(report, REPORTS_DIR, timestamp=stamp)
+    write_traces(
+        build_trace_rows(by_id, traces, judged),
+        REPORTS_DIR,
+        stem=f"{stamp}-{args.label}",
+    )
     print(f"relatório: {paths[1]}")  # noqa: T201
     return 0
 

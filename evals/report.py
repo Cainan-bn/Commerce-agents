@@ -6,7 +6,8 @@ from typing import Any
 
 from data.eval_scenarios_schema import EvalScenario
 
-from evals.metrics import Aggregate, ScenarioResult
+from evals.judge import JudgeResult, summarize, summarize_by_category
+from evals.metrics import Aggregate, ScenarioResult, trace_outcome
 from evals.trace import Trace
 
 _EXCERPT_CHARS = 200
@@ -29,6 +30,7 @@ def build_report(
     results: list[ScenarioResult],
     scenarios: dict[str, EvalScenario],
     traces: dict[str, Trace],
+    judge: dict[str, JudgeResult] | None = None,
 ) -> dict[str, Any]:
     costs = [r.cost_usd for r in results if r.cost_usd is not None]
     entries: list[dict[str, Any]] = []
@@ -48,7 +50,7 @@ def build_report(
         elif not result.scenario_pass:
             entry["failure_excerpt"] = failure_excerpt(result, trace)
         entries.append(entry)
-    return {
+    report: dict[str, Any] = {
         "label": label,
         "commit": commit,
         "corpus_version": corpus_version,
@@ -61,6 +63,13 @@ def build_report(
         "by_category": {name: agg.rates for name, agg in aggregate.by_category.items()},
         "scenarios": entries,
     }
+    if judge is not None:
+        categories = {r.scenario_id: r.category for r in results if r.scenario_id in judge}
+        report["judge"] = {
+            **summarize(judge.values()),
+            "by_category": summarize_by_category(judge, categories),
+        }
+    return report
 
 
 def _table(header: list[str], rows: list[list[str]]) -> list[str]:
@@ -101,10 +110,36 @@ def render_markdown(report: dict[str, Any]) -> str:
             for category, rates in categories.items()
         ],
     )
+    judge_lines = _judge_section(report.get("judge"))
     failures = [s for s in report["scenarios"] if s.get("failure_excerpt") or s.get("infra_error")]
     lines += ["", "## Falhas", ""]
     lines += [f"- **{s['id']}** ({s['category']}): {_why(s)}" for s in failures] or ["Nenhuma."]
-    return "\n".join(lines) + "\n"
+    return "\n".join([*lines, *judge_lines]) + "\n"
+
+
+def _judge_section(judge: dict[str, Any] | None) -> list[str]:
+    if judge is None:
+        return []
+    lines = [
+        "",
+        "## Juiz (sinal secundário)",
+        "",
+        f"- nota geral média: {_mean(judge['mean_overall'])}",
+        f"- julgados: {judge['judged']}; pulados: {judge['skipped']}",
+        "",
+        *_table(
+            ["categoria", "média", "julgados", "pulados"],
+            [
+                [name, _mean(item["mean_overall"]), str(item["judged"]), str(item["skipped"])]
+                for name, item in judge["by_category"].items()
+            ],
+        ),
+    ]
+    return lines
+
+
+def _mean(value: float | None) -> str:
+    return "-" if value is None else f"{value:.2f}"
 
 
 def _why(entry: dict[str, Any]) -> str:
@@ -132,3 +167,50 @@ def compare(before: dict[str, Any], after: dict[str, Any]) -> dict[str, list[str
             continue
         (improved if scenario["scenario_pass"] else worsened).append(scenario["id"])
     return {"improved": improved, "worsened": worsened}
+
+
+def build_trace_rows(
+    scenarios: dict[str, EvalScenario],
+    traces: dict[str, Trace],
+    judge: dict[str, JudgeResult] | None = None,
+) -> list[dict[str, Any]]:
+    """Uma linha por cenário, sem argumentos de ferramenta, tokens, chaves nem `expected`."""
+    rows: list[dict[str, Any]] = []
+    for scenario_id, scenario in scenarios.items():
+        trace = traces[scenario_id]
+        row: dict[str, Any] = {
+            "id": scenario_id,
+            "category": str(scenario.category),
+            "outcome": trace_outcome(trace),
+            "turns": [
+                {"user_text": t.user_text, "reply": t.reply, "agent": t.agent, "intent": t.intent}
+                for t in trace.turns
+            ],
+            "tool_calls": [
+                {"name": c.name, "ok": c.ok, "error_code": c.error_code} for c in trace.tool_calls
+            ],
+            "policy_citations": trace.policy_citations,
+            "infra_error": trace.infra_error,
+        }
+        result = None if judge is None else judge.get(scenario_id)
+        if result is not None:
+            row["judge"] = (
+                {"skipped_reason": result.skipped_reason}
+                if result.score is None
+                else {
+                    "overall": result.score.overall,
+                    "criteria": result.score.criteria,
+                    "rationale": result.score.rationale,
+                }
+            )
+        rows.append(row)
+    return rows
+
+
+def write_traces(rows: list[dict[str, Any]], out_dir: Path, *, stem: str) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"{stem}.traces.jsonl"
+    path.write_text(
+        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8"
+    )
+    return path
