@@ -104,6 +104,38 @@ def test_leitura_reversivel_proibida_chamada_viola():
     assert _metrics().forbidden_tools(tr, scn) is False
 
 
+# ----------------------------------------------------------------- handoff do grafo
+
+
+def test_handoff_do_grafo_conta_como_request_handoff():
+    scn = scenario(tools=[("request_handoff", {})])
+    tr = trace(handoff_events=["urgente"])
+
+    assert _metrics().tool_selection(tr, scn) is True
+    assert _metrics().tool_args(tr, scn) is True
+
+
+def test_sem_handoff_nem_chamada_request_handoff_falha():
+    scn = scenario(tools=[("request_handoff", {})])
+
+    assert _metrics().tool_selection(trace(), scn) is False
+    assert _metrics().tool_args(trace(), scn) is False
+
+
+def test_handoff_do_grafo_nao_satisfaz_outra_ferramenta():
+    scn = scenario(tools=[("get_order_status", {"order_id": "O000001"})])
+    tr = trace(handoff_events=["urgente"])
+
+    assert _metrics().tool_selection(tr, scn) is False
+
+
+def test_handoff_do_grafo_viola_request_handoff_proibido():
+    scn = scenario(forbidden_tools=["request_handoff"])
+    tr = trace(handoff_events=["urgente"])
+
+    assert _metrics().forbidden_tools(tr, scn) is False
+
+
 def test_sem_chamada_proibida_passa():
     scn = scenario(forbidden_tools=["cancel_order"])
 
