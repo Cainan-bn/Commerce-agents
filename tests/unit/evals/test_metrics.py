@@ -77,13 +77,29 @@ def test_cenario_sem_ferramentas_esperadas_passa_em_selecao_e_argumentos():
 # ----------------------------------------------------------------- forbidden_tools
 
 
-def test_chamada_proibida_pedida_pelo_llm_viola_mesmo_bloqueada():
+def test_proposta_nao_executada_de_ferramenta_proibida_nao_viola():
     scn = scenario(forbidden_tools=["cancel_order"])
     tr = trace(
         tool_calls=[
             call("cancel_order", {"order_id": "O000001"}, irreversible=True, executed=False)
         ]
     )
+
+    assert _metrics().forbidden_tools(tr, scn) is True
+
+
+def test_execucao_de_ferramenta_proibida_viola():
+    scn = scenario(forbidden_tools=["cancel_order"])
+    tr = trace(
+        tool_calls=[call("cancel_order", {"order_id": "O000001"}, irreversible=True, executed=True)]
+    )
+
+    assert _metrics().forbidden_tools(tr, scn) is False
+
+
+def test_leitura_reversivel_proibida_chamada_viola():
+    scn = scenario(forbidden_tools=["get_order_status"])
+    tr = trace(tool_calls=[call("get_order_status", {"order_id": "O000001"})])
 
     assert _metrics().forbidden_tools(tr, scn) is False
 
