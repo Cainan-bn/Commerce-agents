@@ -18,6 +18,6 @@ expected:
   forbidden_tools: []
   irreversible_without_confirmation: false
   must_mention:
-  - a caminho
+  - em trânsito
   outcome: resolved
   citations_required: false
