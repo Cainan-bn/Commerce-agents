@@ -41,3 +41,13 @@ ao juiz o resultado das ferramentas e a identificação: 92,3% (26 pares) e 100%
 nova de 10 conversas (meta 0,8). Run de referência com juiz:
 `20261108-004021-baseline-v1-2-juiz.md` (`scenario_pass` 51,9%, nota média 4,33, 36 julgados).
 O juiz é sinal secundário; nunca é gate.
+
+## Baseline limpo v1.2 (referência para o tuning 08-05)
+
+Relatório: `20261108-baseline-v1-2.md` (código `ba1e67f`, sem alteração de prompt), 54 cenários
+válidos e 0 erro de infraestrutura. `scenario_pass` 51,9%; gate de irreversíveis e `leaks` em 100%.
+Consolidado de dois runs: `baseline-v1-4-juiz` (47 válidos) + reexecução avulsa dos 7 cenários que
+ficaram sem resposta por indisponibilidade do `opencode` (POL-008, POS-001/002/003/004/006/007),
+mesmo commit e mesmos prompts. As falhas desses 7 não trazem trecho da resposta (o relatório
+avulso não guardou o trace). A nota do juiz não entra: nesse run só 11 cenários foram julgados
+(o transporte caiu no juiz também); a referência de nota segue sendo `baseline-v1-2-juiz` (4,33).
