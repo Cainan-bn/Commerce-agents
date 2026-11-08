@@ -3,15 +3,67 @@
 import pytest
 
 from commerce_agents.application.dto.views import IntentDecision
+from commerce_agents.application.ports.llm import LLMUnavailableError
 from tests.fakes.scripted_llm import ScriptedLLM
 
 pytestmark = pytest.mark.unit
 
 
-def _router(llm: ScriptedLLM):  # type: ignore[no-untyped-def]
+def _router(llm: ScriptedLLM, on_failure=None):  # type: ignore[no-untyped-def]
     from commerce_agents.infrastructure.agents.router import LLMIntentRouter
 
-    return LLMIntentRouter(llm)
+    return LLMIntentRouter(llm, on_failure=on_failure)
+
+
+async def test_queda_do_provider_chama_on_failure_uma_vez_e_devolve_ambiguous():
+    falhas: list[BaseException] = []
+    erro = LLMUnavailableError("opencode fora do ar")
+    llm = ScriptedLLM([erro])
+
+    decision = await _router(llm, on_failure=falhas.append).route("pedido")
+
+    assert falhas == [erro]
+    assert decision.intent == "ambiguous"
+    assert decision.confidence == 0.0
+
+
+@pytest.mark.parametrize(
+    "resposta",
+    [
+        "isto não é json {",
+        '{"intent": "comprar_carro", "confidence": 0.9}',
+        '{"intent": "order_status", "confidence": 1.5}',
+    ],
+    ids=["json_invalido", "intent_fora_do_enum", "confianca_fora_de_faixa"],
+)
+async def test_resposta_invalida_do_modelo_nao_chama_on_failure(resposta: str):
+    falhas: list[BaseException] = []
+    llm = ScriptedLLM([resposta])
+
+    decision = await _router(llm, on_failure=falhas.append).route("pedido")
+
+    assert falhas == []
+    assert decision.intent == "ambiguous"
+    assert decision.confidence == 0.0
+
+
+async def test_sucesso_nunca_chama_on_failure():
+    falhas: list[BaseException] = []
+    llm = ScriptedLLM(['{"intent": "order_status", "confidence": 0.92}'])
+
+    decision = await _router(llm, on_failure=falhas.append).route("pedido")
+
+    assert falhas == []
+    assert decision.intent == "order_status"
+
+
+async def test_on_failure_none_mantem_fallback_sem_erro():
+    llm = ScriptedLLM([LLMUnavailableError("fora do ar")])
+
+    decision = await _router(llm, on_failure=None).route("pedido")
+
+    assert decision.intent == "ambiguous"
+    assert decision.confidence == 0.0
 
 
 async def test_json_valido_vira_intent_decision():

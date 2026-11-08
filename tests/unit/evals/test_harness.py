@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from tests.fakes.evals import ExplodingRouter, make_eval_deps
+from tests.fakes.scripted_llm import ScriptedLLM
 from tests.fakes.traces import scenario
 
 pytestmark = pytest.mark.unit
@@ -93,6 +94,30 @@ async def test_erro_de_infraestrutura_vira_infra_error_sem_levantar():
 
     assert trace.infra_error
     assert "roteador" in trace.infra_error
+
+
+async def test_queda_do_llm_dentro_do_roteador_marca_infra_error():
+    from commerce_agents.application.ports.llm import LLMUnavailableError
+    from commerce_agents.infrastructure.agents.router import LLMIntentRouter
+
+    roteador = LLMIntentRouter(ScriptedLLM([LLMUnavailableError("opencode fora do ar")]))
+    deps = make_eval_deps([_final("ok")], router=roteador)
+
+    trace = await _harness().run_scenario(scenario(), deps)
+
+    assert trace.infra_error is not None
+    assert "roteador" in trace.infra_error
+
+
+async def test_resposta_invalida_do_modelo_no_roteador_nao_e_infra_error():
+    from commerce_agents.infrastructure.agents.router import LLMIntentRouter
+
+    roteador = LLMIntentRouter(ScriptedLLM(["isto não é json {"]))
+    deps = make_eval_deps([_final("ok")], router=roteador)
+
+    trace = await _harness().run_scenario(scenario(), deps)
+
+    assert trace.infra_error is None
 
 
 def _recorder_apos_ferramenta(body: dict[str, Any]) -> Any:
