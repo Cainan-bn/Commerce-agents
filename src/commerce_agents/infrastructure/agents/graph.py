@@ -98,10 +98,15 @@ _RULES = (
 _KNOWN_CUSTOMER_RULE = (
     "O cliente já está identificado: não peça o que as ferramentas devolvem (código de cliente, "
     "dados do pedido). Sem número de pedido, use list_customer_orders; para o SKU de um pedido, "
-    "leia get_order_status. Só pergunte ao cliente o que as ferramentas não conseguem obter "
-    "(ex.: qual item e o motivo)."
+    "leia get_order_status."
 )
 _KNOWN_CUSTOMER_AGENTS = frozenset({"pedidos", "pos_venda"})
+_RETURN_RULE = (
+    "Devolução: leia o pedido com get_order_status e use o SKU do item em "
+    "check_return_eligibility; não pergunte o item quando o pedido tiver um só item. Só pergunte "
+    "qual item se houver mais de um, sem pedir SKU (o cliente não conhece SKU). O motivo da "
+    "devolução não é necessário para verificar a elegibilidade."
+)
 _PROTOCOL = (
     "Responda SEMPRE com um único objeto JSON, sem texto fora dele. Para usar uma ferramenta: "
     '{"type": "tool_call", "tool": "<nome>", "arguments": {...}}. Para responder ao cliente: '
@@ -334,6 +339,7 @@ class _Nodes:
                     if identified and agent_key in _KNOWN_CUSTOMER_AGENTS
                     else ()
                 ),
+                *((_RETURN_RULE,) if identified and agent_key == "pos_venda" else ()),
                 _PROTOCOL,
                 "Ferramentas (nome: JSON Schema dos argumentos):",
                 render_tool_catalog(agent_key),
