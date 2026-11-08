@@ -274,10 +274,27 @@ def _cost_usd(deps: EvalDeps, recorder: _Recorder, before: float | None) -> floa
     return None if not costs or any(c is None for c in costs) else sum(c or 0.0 for c in costs)
 
 
+def _hook_router_failure(router: IntentRouter, recorder: _Recorder) -> Callable[[], None]:
+    """Liga a queda do LLM no roteador ao `recorder`; roteadores sem `on_failure` ficam como são.
+
+    A mensagem leva só o tipo do erro: o texto do provider pode ecoar dados do cliente.
+    """
+    if not hasattr(router, "on_failure"):
+        return lambda: None
+    previous = router.on_failure
+
+    def restore() -> None:
+        router.on_failure = previous
+
+    router.on_failure = lambda error: recorder.fail("roteador", RuntimeError(type(error).__name__))
+    return restore
+
+
 async def run_scenario(scenario: EvalScenario, deps: EvalDeps) -> Trace:
     """Roda os turnos do cenário (máx. `MAX_TURNS`) e devolve o `Trace`; nunca levanta."""
     deps.reset()
     recorder = _Recorder()
+    restore_router = _hook_router_failure(deps.router, recorder)
     graph = build_graph(
         GraphDeps(
             llm=_RecordingLLM(deps.llm, recorder),
@@ -350,6 +367,7 @@ async def run_scenario(scenario: EvalScenario, deps: EvalDeps) -> Trace:
     trace.tool_calls = recorder.tool_calls
     trace.llm_calls = recorder.llm_calls
     trace.handoff_events = recorder.handoff_events
+    restore_router()
     trace.infra_error = recorder.infra_error
     trace.cost_usd = _cost_usd(deps, recorder, cost_before)
     return trace

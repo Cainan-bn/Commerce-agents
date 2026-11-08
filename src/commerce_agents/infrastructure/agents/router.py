@@ -2,6 +2,7 @@
 
 import json
 import logging
+from collections.abc import Callable
 
 from pydantic import ValidationError
 
@@ -36,8 +37,12 @@ def _fallback() -> IntentDecision:
 class LLMIntentRouter:
     """Implementa `IntentRouter` sobre `LLMProvider`."""
 
-    def __init__(self, llm: LLMProvider) -> None:
+    def __init__(
+        self, llm: LLMProvider, on_failure: Callable[[BaseException], None] | None = None
+    ) -> None:
         self._llm = llm
+        # Chamado uma vez quando o provider cai (não em resposta inválida); o fallback segue.
+        self.on_failure = on_failure
 
     async def route(self, text: str) -> IntentDecision:
         messages = [
@@ -51,6 +56,8 @@ class LLMIntentRouter:
             return IntentDecision(intent=decision.intent.value, confidence=decision.confidence)
         except (ValidationError, ValueError, json.JSONDecodeError):
             logger.warning("router: resposta inválida do LLM; usando ambiguous")
-        except Exception:
+        except Exception as error:
             logger.warning("router: LLM indisponível; usando ambiguous", exc_info=True)
+            if self.on_failure is not None:
+                self.on_failure(error)
         return _fallback()
