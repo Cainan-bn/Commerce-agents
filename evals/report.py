@@ -8,6 +8,7 @@ from data.eval_scenarios_schema import EvalScenario
 
 from evals.judge import JudgeResult, summarize, summarize_by_category
 from evals.metrics import Aggregate, ScenarioResult, trace_outcome
+from evals.retry import InfraRetry
 from evals.trace import Trace
 
 _EXCERPT_CHARS = 200
@@ -31,6 +32,7 @@ def build_report(
     scenarios: dict[str, EvalScenario],
     traces: dict[str, Trace],
     judge: dict[str, JudgeResult] | None = None,
+    infra_retry: InfraRetry | None = None,
 ) -> dict[str, Any]:
     costs = [r.cost_usd for r in results if r.cost_usd is not None]
     entries: list[dict[str, Any]] = []
@@ -56,13 +58,15 @@ def build_report(
         "corpus_version": corpus_version,
         "models": models,
         "temperature": temperature,
-        "cost_usd": sum(costs) if costs else None,
+        "cost_usd": _total_cost(costs, infra_retry),
         "total": aggregate.total,
         "infra_errors": aggregate.infra_errors,
         "rates": aggregate.rates,
         "by_category": {name: agg.rates for name, agg in aggregate.by_category.items()},
         "scenarios": entries,
     }
+    if infra_retry is not None:
+        report["infra_retry"] = {"rounds": infra_retry.rounds, "recovered": infra_retry.recovered}
     if judge is not None:
         categories = {r.scenario_id: r.category for r in results if r.scenario_id in judge}
         report["judge"] = {
@@ -70,6 +74,11 @@ def build_report(
             "by_category": summarize_by_category(judge, categories),
         }
     return report
+
+
+def _total_cost(costs: list[float], infra_retry: InfraRetry | None) -> float | None:
+    extra = 0.0 if infra_retry is None else infra_retry.extra_cost_usd
+    return sum(costs) + extra if costs else None
 
 
 def _table(header: list[str], rows: list[list[str]]) -> list[str]:
@@ -93,6 +102,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- temperatura: {report['temperature']}",
         f"- custo (USD): {report['cost_usd']}",
         f"- erros de infraestrutura: {report['infra_errors']}",
+        *_retry_line(report.get("infra_retry")),
         "",
         "## Taxas por métrica",
         "",
@@ -115,6 +125,15 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines += ["", "## Falhas", ""]
     lines += [f"- **{s['id']}** ({s['category']}): {_why(s)}" for s in failures] or ["Nenhuma."]
     return "\n".join([*lines, *judge_lines]) + "\n"
+
+
+def _retry_line(retry: dict[str, Any] | None) -> list[str]:
+    if retry is None:
+        return []
+    return [
+        f"- reexecuções de infraestrutura: {retry['rounds']} rodadas, "
+        f"{retry['recovered']} cenários recuperados"
+    ]
 
 
 def _judge_section(judge: dict[str, Any] | None) -> list[str]:

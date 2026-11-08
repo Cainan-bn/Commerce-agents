@@ -110,10 +110,10 @@ test-e2e: ## Roda testes end-to-end
 	@echo "[test-e2e] nao implementado nesta fase"
 
 eval: ## Roda a suite de avaliacao dev completa (LABEL=nome; grava reports/eval)
-	uv run python -m evals run --label "$(or $(LABEL),local)" --subset all --split dev
+	uv run python -m evals run --label "$(or $(LABEL),local)" --subset all --split dev --retry-infra 2
 
 eval-quick: ## Roda o subset rapido de 12 cenarios para PR (LABEL=nome)
-	uv run python -m evals run --label "$(or $(LABEL),quick)" --subset quick --split dev
+	uv run python -m evals run --label "$(or $(LABEL),quick)" --subset quick --split dev --retry-infra 2
 
 eval-holdout: ## Roda o holdout (so o Lider; exige EVAL_HOLDOUT_DIR fora do repositorio)
 	uv run python -m evals run --label "$(or $(LABEL),holdout)" --subset all --split holdout

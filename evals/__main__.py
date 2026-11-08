@@ -24,6 +24,7 @@ from evals.harness import build_real_deps, run_scenario
 from evals.judge import JudgeResult, judge_scenario
 from evals.metrics import aggregate, evaluate
 from evals.report import build_report, build_trace_rows, write_report, write_traces
+from evals.retry import retry_infra
 from evals.subsets import QUICK_SUBSET
 from evals.trace import Trace
 
@@ -32,6 +33,8 @@ DEV_DIR = REPO_ROOT / "data" / "eval_scenarios"
 POLICIES_DIR = REPO_ROOT / "data" / "policies"
 REPORTS_DIR = REPO_ROOT / "reports" / "eval"
 CONCURRENCY = 4
+DEFAULT_RETRY_INFRA = 2
+RETRY_PAUSE_S = 20.0
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -41,6 +44,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     run.add_argument("--label", required=True)
     run.add_argument("--subset", choices=("all", "quick"), default="all")
     run.add_argument("--split", choices=("dev", "holdout"), default="dev")
+    run.add_argument(
+        "--retry-infra",
+        type=int,
+        default=DEFAULT_RETRY_INFRA,
+        metavar="N",
+        help="rodadas de reexecução só dos cenários com erro de infraestrutura (0 desliga)",
+    )
     run.add_argument(
         "--judge", action="store_true", help="acrescenta o juiz LLM (sinal secundário)"
     )
@@ -104,11 +114,13 @@ def _corpus_version(policies_dir: Path = POLICIES_DIR) -> str:
     return digest.hexdigest()[:12]
 
 
-async def _run_all(scenarios: list[EvalScenario], environ: Mapping[str, str]) -> dict[str, Trace]:
+async def _run_all(
+    scenarios: list[EvalScenario], environ: Mapping[str, str], concurrency: int = CONCURRENCY
+) -> dict[str, Trace]:
     from commerce_agents.infrastructure.llm.openai_compatible import build_provider_from_env
 
     llm = build_provider_from_env(environ)
-    gate = asyncio.Semaphore(CONCURRENCY)
+    gate = asyncio.Semaphore(concurrency)
 
     async def one(scenario: EvalScenario) -> tuple[str, Trace]:
         async with gate:
@@ -176,6 +188,18 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
     check_split_allowed(args.split, environ=env, repo_root=REPO_ROOT)
     scenarios = load_scenarios(args.split, args.subset, environ=env)
     traces = asyncio.run(_run_all(scenarios, env))
+    retry = None
+    if args.retry_infra > 0:
+        retry = asyncio.run(
+            retry_infra(
+                scenarios,
+                traces,
+                lambda subset, concurrency: _run_all(subset, env, concurrency),
+                rounds=args.retry_infra,
+                pause_s=RETRY_PAUSE_S,
+            )
+        )
+        traces = retry.traces
     by_id = {s.id: s for s in scenarios}
     results = [evaluate(traces[s.id], s) for s in scenarios]
     judged = asyncio.run(_judge_all(scenarios, traces, env)) if args.judge else None
@@ -190,6 +214,7 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
         scenarios=by_id,
         traces=traces,
         judge=judged,
+        infra_retry=retry,
     )
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     paths = write_report(report, REPORTS_DIR, timestamp=stamp)
