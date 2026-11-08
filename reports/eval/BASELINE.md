@@ -51,3 +51,13 @@ ficaram sem resposta por indisponibilidade do `opencode` (POL-008, POS-001/002/0
 mesmo commit e mesmos prompts. As falhas desses 7 não trazem trecho da resposta (o relatório
 avulso não guardou o trace). A nota do juiz não entra: nesse run só 11 cenários foram julgados
 (o transporte caiu no juiz também); a referência de nota segue sendo `baseline-v1-2-juiz` (4,33).
+
+## H1 — cliente identificado no prompt (`404bb42`)
+
+Relatório: `20261108-h1-consolidado.md` (54 válidos, 0 infra; consolidado do run `h1-pedidos-posvenda`
+com a reexecução avulsa de POL-008, POS-001/003/005, como no v1.2). `scenario_pass` 51,9% → 57,4%,
+`tool_selection` 77,8% → 83,3%. Pedidos 78,6% → 85,7% (PED-004 passou). Gate e `leaks` 100%.
+`pos_venda` não melhorou (12,5%): o agente agora acha o pedido, mas pergunta "qual item" em vez de
+ler o SKU em `get_order_status` e chamar `check_return_eligibility` (POS-002/004, IRR-005). A
+regra da H1 chega a convidar essa pergunta; ajuste na H1b. A alta em `politicas` (37,5% → 62,5%)
+não tem relação com a H1 (o ajuste não toca esse agente): variação entre runs/infra.
