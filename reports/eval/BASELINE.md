@@ -31,3 +31,13 @@ referência para o tuning. `scenario_pass` 52,9% (49 cenários válidos); gate d
 `leaks` em 100%. 3 cenários com erro de infraestrutura do transporte (POL-002 e POL-008:
 opencode código 1; POS-001: timeout), fora das taxas. As falhas de infra variam entre runs
 (no v1 foram POL-004 e POS-001): é instabilidade do `opencode`, tratada na Fase 09.
+
+## Juiz LLM calibrado (08-03)
+
+Juiz `opencode-go/gpt-6-luna`, rubrica de 4 critérios (nota geral = média arredondada). Rótulos
+humanos em `data/judge_calibration/` (30 conversas + 10 de validação). Calibração 1 (juiz sem o
+conteúdo das ferramentas nem a identificação do cliente): 76,7% de concordância ±1. Após dar
+ao juiz o resultado das ferramentas e a identificação: 92,3% (26 pares) e 100% numa amostra
+nova de 10 conversas (meta 0,8). Run de referência com juiz:
+`20261108-004021-baseline-v1-2-juiz.md` (`scenario_pass` 51,9%, nota média 4,33, 36 julgados).
+O juiz é sinal secundário; nunca é gate.
