@@ -90,3 +90,18 @@ tempo 68 min: agente 61, reexecução 8). `scenario_pass` 59,3% → 61,1%, `tool
 `must_mention` 85,2%. IRR-004 e POS-007 passaram. Gate e `leaks` 100%. `politicas` caiu a 37,5%
 (era 62,5%): os 5 cenários que falham ali são anônimos e recebem "preciso identificar você"
 (roteador, H2); o agente de políticas não foi tocado, então a oscilação vem do roteador, não da H4.
+
+## Correção de memória do harness (`a912949`) e H2 — roteador (`fb0858f`)
+
+O run anterior da H2 travou após 5h30: `build_real_deps` criava um engine (pool nunca fechado) e um
+`FastEmbedEmbedder` (modelo recarregado) por cenário; o processo chegou a 1,4 GB e o WSL entrou em
+swap (load 90). Com `SharedInfra` (engine e embedder uma vez por run) o processo ficou entre 100 e
+250 MB e o run levou 40 min, sem nenhum erro de infraestrutura na 1ª passada. Parte da
+"instabilidade do opencode" medida antes era esse afogamento da máquina.
+
+Relatório: `20261109-224304-h2-roteador.md` (54 válidos, 0 infra, sem reexecução).
+`scenario_pass` 61,1% → 66,7%; `intent_agent` 70,4% → 77,8%; `tool_selection` 94,4%;
+`citations` 100%; gate e `leaks` 100%. `politicas` 37,5% → 87,5% (`intent_agent` 100%).
+Sem regressão em pedidos (92,9%) e pos_venda (50%). CAT-001 falhou: roteado certo
+(`product_search` → catálogo), mas o agente respondeu "não consigo consultar o catálogo" sem
+chamar ferramenta; caso isolado, acompanhar no próximo run.
