@@ -82,3 +82,11 @@ Relatório: `20261109-134527-h1d-eligible.md` (54 válidos, 0 infra após reexec
 Tempo: `--concurrency 8 --llm-timeout 90` foi pior que o esperado: 41 dos 54 cenários caíram em
 infra na 1ª passada (opencode não aguenta 8 chamadas simultâneas) e o run levou 75 min
 (agente 58, reexecução 17). Manter `--concurrency 4` como padrão até a Fase 09.
+
+## H4 — orientação de devolução no preflight (`5b0884c`)
+
+Relatório: `20261109-152317-h4-devolucao.md` (54 válidos, 0 infra após reexecução, `--concurrency 4`,
+tempo 68 min: agente 61, reexecução 8). `scenario_pass` 59,3% → 61,1%, `tool_selection` 90,7%,
+`must_mention` 85,2%. IRR-004 e POS-007 passaram. Gate e `leaks` 100%. `politicas` caiu a 37,5%
+(era 62,5%): os 5 cenários que falham ali são anônimos e recebem "preciso identificar você"
+(roteador, H2); o agente de políticas não foi tocado, então a oscilação vem do roteador, não da H4.
