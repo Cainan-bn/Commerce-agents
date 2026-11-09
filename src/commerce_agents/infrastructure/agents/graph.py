@@ -105,7 +105,11 @@ _RETURN_RULE = (
     "Devolução: leia o pedido com get_order_status e use o SKU do item em "
     "check_return_eligibility; não pergunte o item quando o pedido tiver um só item. Só pergunte "
     "qual item se houver mais de um, sem pedir SKU (o cliente não conhece SKU). O motivo da "
-    "devolução não é necessário para verificar a elegibilidade."
+    "devolução não é necessário para verificar a elegibilidade. Sobre o resultado: "
+    "confie no campo eligible e não o recalcule. Se eligible=true, diga que pode devolver "
+    "e cite o deadline; se eligible=false, explique pelo reason (deadline_exceeded: prazo vencido; "
+    "not_delivered: pedido ainda não entregue). Atenção: você não sabe a data de hoje; "
+    "nunca compare o prazo com uma data de hoje."
 )
 _PROTOCOL = (
     "Responda SEMPRE com um único objeto JSON, sem texto fora dele. Para usar uma ferramenta: "
