@@ -113,6 +113,12 @@ _RETURN_RULE = (
     "not_delivered: pedido ainda não entregue). Atenção: você não sabe a data de hoje; "
     "nunca compare o prazo com uma data de hoje."
 )
+_SHIPPING_RULE = (
+    "Frete: quote_shipping exige o SKU de variante e a quantidade (items: sku, qty). Se o cliente "
+    "informar só o produto, antes de cotar obtenha um SKU de variante desse produto com "
+    "check_availability (ou search_products) e use qualquer variante disponível, pois o frete não "
+    "depende de tamanho nem cor; não pergunte tamanho ou cor só para cotar o frete."
+)
 _PROTOCOL = (
     "Responda SEMPRE com um único objeto JSON, sem texto fora dele. Para usar uma ferramenta: "
     '{"type": "tool_call", "tool": "<nome>", "arguments": {...}}. Para responder ao cliente: '
@@ -346,6 +352,7 @@ class _Nodes:
                     else ()
                 ),
                 *((_RETURN_RULE,) if identified and agent_key == "pos_venda" else ()),
+                *((_SHIPPING_RULE,) if agent_key == "catalogo" else ()),
                 _PROTOCOL,
                 "Ferramentas (nome: JSON Schema dos argumentos):",
                 render_tool_catalog(agent_key),
