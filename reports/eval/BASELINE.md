@@ -61,3 +61,14 @@ com a reexecução avulsa de POL-008, POS-001/003/005, como no v1.2). `scenario_
 ler o SKU em `get_order_status` e chamar `check_return_eligibility` (POS-002/004, IRR-005). A
 regra da H1 chega a convidar essa pergunta; ajuste na H1b. A alta em `politicas` (37,5% → 62,5%)
 não tem relação com a H1 (o ajuste não toca esse agente): variação entre runs/infra.
+
+## H1b + H1c — SKU do pedido (`74e490e`, `6f66a13`)
+
+H1b (regra de devolução do `pos_venda`) sozinha não resolveu: `OrderView` descartava os itens que a
+loja devolve, então nenhuma ferramenta entregava o SKU (IRR-005: "o sistema não me mostrou os
+itens"). H1c expõe `items` (sku, qty) em `get_order_status`/`list_customer_orders` (ADR 0004).
+Relatório: `20261109-013334-h1c-itens-pedido.md` (54 válidos, 0 infra, sem juiz).
+`tool_selection` 77,8% (v1.2) → 88,9%; `pos_venda` tool_selection 25% → 87,5%, `scenario_pass`
+12,5% → 25%. `scenario_pass` geral 57,4% (igual à H1): os ganhos de tool_selection ainda não
+fecham o cenário porque as falhas restantes são `must_mention`/`intent_agent` e o relógio do
+mock da loja (POS-001/002 respondem "elegível até 02/11" com hoje em 08/11). Gate e `leaks` 100%.
