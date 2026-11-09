@@ -141,3 +141,15 @@ async def test_frases_de_elegibilidade_e_data_so_vao_para_pos_venda_identificado
 
     assert FRASE_ELIGIBLE not in system
     assert FRASE_DATA not in system
+
+
+# ------------------------------------------------ H4: repassar orientação vinda da ferramenta
+
+FRASE_ORIENTACAO = "Se uma ferramenta devolver orientação ao cliente (ex.: devolução), repasse-a"
+
+
+@pytest.mark.parametrize("intent", ["order_status", "return_eligibility"])
+async def test_pedidos_e_pos_venda_repassam_orientacao_da_ferramenta(intent: str):
+    system = await _system(intent, "C1234")
+
+    assert FRASE_ORIENTACAO in system
