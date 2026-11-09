@@ -21,3 +21,7 @@ Opção 1. Cada ferramenta tem schema Pydantic de entrada/saída, erros tipados 
 
 - Positivas: fronteira clara, testes de contrato, allowlist por agente (ADR 0010).
 - Negativas: latência extra de um salto de protocolo e mais processos para operar.
+
+## Adendo (2026-11-08, H1c)
+
+- `get_order_status` e `list_customer_orders` devolvem `order.items` (`OrderItemView`: `sku`, `qty`), na ordem da loja; o preço unitário não é exposto ao agente.

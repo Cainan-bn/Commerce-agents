@@ -7,6 +7,13 @@ from pydantic import Field
 from commerce_agents.application.dto.base import StrictModel
 
 
+class OrderItemView(StrictModel):
+    """Item do pedido como o agente vê: só o SKU e a quantidade (sem preço)."""
+
+    sku: str
+    qty: int = Field(ge=1)
+
+
 class OrderView(StrictModel):
     order_id: str
     customer_id: str
@@ -15,6 +22,7 @@ class OrderView(StrictModel):
     created_at: datetime
     delivered_at: datetime | None
     total_cents: int = Field(ge=0)
+    items: tuple[OrderItemView, ...] = ()
 
 
 class VariantAvailability(StrictModel):
