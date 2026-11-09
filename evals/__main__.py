@@ -6,7 +6,8 @@ import hashlib
 import os
 import subprocess
 import sys
-from collections.abc import Mapping, Sequence
+import time
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -33,8 +34,29 @@ DEV_DIR = REPO_ROOT / "data" / "eval_scenarios"
 POLICIES_DIR = REPO_ROOT / "data" / "policies"
 REPORTS_DIR = REPO_ROOT / "reports" / "eval"
 CONCURRENCY = 4
+LLM_TIMEOUT_S = 180.0
 DEFAULT_RETRY_INFRA = 2
 RETRY_PAUSE_S = 20.0
+
+
+def _positive_int(raw: str) -> int:
+    try:
+        value = int(raw)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"inteiro inválido: {raw!r}") from None
+    if value < 1:
+        raise argparse.ArgumentTypeError("deve ser >= 1")
+    return value
+
+
+def _positive_float(raw: str) -> float:
+    try:
+        value = float(raw)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"número inválido: {raw!r}") from None
+    if value <= 0:
+        raise argparse.ArgumentTypeError("deve ser > 0")
+    return value
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -53,6 +75,20 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     run.add_argument(
         "--judge", action="store_true", help="acrescenta o juiz LLM (sinal secundário)"
+    )
+    run.add_argument(
+        "--concurrency",
+        type=_positive_int,
+        default=CONCURRENCY,
+        metavar="N",
+        help="cenários e chamadas ao LLM em paralelo (>= 1)",
+    )
+    run.add_argument(
+        "--llm-timeout",
+        type=_positive_float,
+        default=LLM_TIMEOUT_S,
+        metavar="S",
+        help="timeout, em segundos, de cada chamada ao LLM (> 0)",
     )
     export = sub.add_parser("calibrate-export", help="amostra conversas para rotulagem humana")
     export.add_argument("--traces", type=Path, required=True)
@@ -136,12 +172,15 @@ async def _run_all(
 
 
 async def _judge_all(
-    scenarios: list[EvalScenario], traces: dict[str, Trace], environ: Mapping[str, str]
+    scenarios: list[EvalScenario],
+    traces: dict[str, Trace],
+    environ: Mapping[str, str],
+    concurrency: int = CONCURRENCY,
 ) -> dict[str, JudgeResult]:
     from commerce_agents.infrastructure.llm.openai_compatible import build_judge_provider_from_env
 
     provider = build_judge_provider_from_env(environ)
-    gate = asyncio.Semaphore(CONCURRENCY)
+    gate = asyncio.Semaphore(concurrency)
 
     async def one(scenario: EvalScenario) -> tuple[str, JudgeResult]:
         async with gate:
@@ -178,7 +217,11 @@ def _calibrate(args: argparse.Namespace, environ: Mapping[str, str]) -> int:
     return 0  # medida, não gate
 
 
-def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    environ: Mapping[str, str] | None = None,
+    clock: Callable[[], float] = time.monotonic,
+) -> int:
     env = os.environ if environ is None else environ
     args = parse_args(argv)
     if args.command == "calibrate-export":
@@ -187,22 +230,42 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
         return _calibrate(args, env)
     check_split_allowed(args.split, environ=env, repo_root=REPO_ROOT)
     scenarios = load_scenarios(args.split, args.subset, environ=env)
-    traces = asyncio.run(_run_all(scenarios, env))
+    env = {
+        **env,
+        "LLM_OPENCODE_MAX_CONCURRENCY": str(args.concurrency),
+        "LLM_OPENCODE_TIMEOUT_S": str(args.llm_timeout),
+    }
+    started = clock()
+    traces = asyncio.run(_run_all(scenarios, env, args.concurrency))
+    agent_done = clock()
     retry = None
     if args.retry_infra > 0:
         retry = asyncio.run(
             retry_infra(
                 scenarios,
                 traces,
-                lambda subset, concurrency: _run_all(subset, env, concurrency),
+                lambda subset, concurrency: _run_all(
+                    subset, env, min(concurrency, args.concurrency)
+                ),
                 rounds=args.retry_infra,
                 pause_s=RETRY_PAUSE_S,
             )
         )
         traces = retry.traces
+    retry_done = clock()
     by_id = {s.id: s for s in scenarios}
     results = [evaluate(traces[s.id], s) for s in scenarios]
-    judged = asyncio.run(_judge_all(scenarios, traces, env)) if args.judge else None
+    judge_started = clock()
+    judged = (
+        asyncio.run(_judge_all(scenarios, traces, env, args.concurrency)) if args.judge else None
+    )
+    finished = clock()
+    timing = {
+        "agent": agent_done - started,
+        "retry": retry_done - agent_done,
+        "judge": finished - judge_started,
+        "total": finished - started,
+    }
     report = build_report(
         label=args.label,
         commit=_commit(),
@@ -215,6 +278,7 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
         traces=traces,
         judge=judged,
         infra_retry=retry,
+        timing=timing,
     )
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     paths = write_report(report, REPORTS_DIR, timestamp=stamp)

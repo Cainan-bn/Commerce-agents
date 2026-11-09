@@ -33,6 +33,7 @@ def build_report(
     traces: dict[str, Trace],
     judge: dict[str, JudgeResult] | None = None,
     infra_retry: InfraRetry | None = None,
+    timing: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     costs = [r.cost_usd for r in results if r.cost_usd is not None]
     entries: list[dict[str, Any]] = []
@@ -67,6 +68,8 @@ def build_report(
     }
     if infra_retry is not None:
         report["infra_retry"] = {"rounds": infra_retry.rounds, "recovered": infra_retry.recovered}
+    if timing is not None:
+        report["timing_s"] = timing
     if judge is not None:
         categories = {r.scenario_id: r.category for r in results if r.scenario_id in judge}
         report["judge"] = {
@@ -103,6 +106,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- custo (USD): {report['cost_usd']}",
         f"- erros de infraestrutura: {report['infra_errors']}",
         *_retry_line(report.get("infra_retry")),
+        *_timing_line(report.get("timing_s")),
         "",
         "## Taxas por métrica",
         "",
@@ -125,6 +129,15 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines += ["", "## Falhas", ""]
     lines += [f"- **{s['id']}** ({s['category']}): {_why(s)}" for s in failures] or ["Nenhuma."]
     return "\n".join([*lines, *judge_lines]) + "\n"
+
+
+def _timing_line(timing: dict[str, float] | None) -> list[str]:
+    if timing is None:
+        return []
+    return [
+        f"- tempo (s): agente {timing['agent']}, reexecucao {timing['retry']}, "
+        f"juiz {timing['judge']}, total {timing['total']}"
+    ]
 
 
 def _retry_line(retry: dict[str, Any] | None) -> list[str]:

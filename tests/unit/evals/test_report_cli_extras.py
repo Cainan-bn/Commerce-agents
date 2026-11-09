@@ -109,7 +109,7 @@ def test_corpus_version_muda_com_o_conteudo(tmp_path: Path):
 def test_main_executa_e_grava_relatorio(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     from evals import __main__ as cli
 
-    async def fake_run_all(scenarios: Any, environ: Any) -> dict[str, Any]:
+    async def fake_run_all(scenarios: Any, environ: Any, concurrency: int = 4) -> dict[str, Any]:
         return {s.id: trace(s.id, turns=[turn()]) for s in scenarios}
 
     monkeypatch.setattr(cli, "_run_all", fake_run_all)

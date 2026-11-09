@@ -232,10 +232,12 @@ def test_cli_run_com_judge_grava_secao_e_traces(monkeypatch: pytest.MonkeyPatch,
     from evals import __main__ as cli
     from evals.judge import JudgeResult, JudgeScore
 
-    async def fake_run_all(scenarios: Any, environ: Any) -> dict[str, Any]:
+    async def fake_run_all(scenarios: Any, environ: Any, concurrency: int = 4) -> dict[str, Any]:
         return {s.id: trace(s.id, turns=[turn()]) for s in scenarios}
 
-    async def fake_judge_all(scenarios: Any, traces: Any, environ: Any) -> dict[str, Any]:
+    async def fake_judge_all(
+        scenarios: Any, traces: Any, environ: Any, concurrency: int = 4
+    ) -> dict[str, Any]:
         score = JudgeScore({"utilidade": 4, "fidelidade": 4, "tom": 4, "concisao": 4}, "ok")
         return {s.id: JudgeResult(score, None) for s in scenarios}
 
@@ -255,7 +257,7 @@ def test_cli_run_sem_judge_nao_chama_o_juiz_e_grava_traces(
 ):
     from evals import __main__ as cli
 
-    async def fake_run_all(scenarios: Any, environ: Any) -> dict[str, Any]:
+    async def fake_run_all(scenarios: Any, environ: Any, concurrency: int = 4) -> dict[str, Any]:
         return {s.id: trace(s.id, turns=[turn()]) for s in scenarios}
 
     def boom(*args: Any) -> Any:

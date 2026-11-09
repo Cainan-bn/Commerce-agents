@@ -142,7 +142,12 @@ def _build(env: Mapping[str, str], model_var: str) -> LLMProvider:
 
         if not model:
             raise ValueError(f"{model_var} é obrigatório")
-        return OpenCodeCliProvider(model, workdir=_opencode_workdir(env))
+        return OpenCodeCliProvider(
+            model,
+            workdir=_opencode_workdir(env),
+            timeout=_env_number(env, "LLM_OPENCODE_TIMEOUT_S", float, 180.0),
+            max_concurrency=int(_env_number(env, "LLM_OPENCODE_MAX_CONCURRENCY", int, 4)),
+        )
     if provider == "openai-compatible":
         if not env.get("LLM_API_KEY"):
             raise ValueError("LLM_API_KEY é obrigatório com LLM_PROVIDER=openai-compatible")
@@ -152,6 +157,21 @@ def _build(env: Mapping[str, str], model_var: str) -> LLMProvider:
             env.get("LLM_BASE_URL") or DEFAULT_BASE_URL, env["LLM_API_KEY"], model
         )
     raise ValueError(f"LLM_PROVIDER inválido: {provider!r} (use opencode-cli ou openai-compatible)")
+
+
+def _env_number(
+    env: Mapping[str, str], name: str, parse: Callable[[str], float], default: float
+) -> float:
+    raw = env.get(name)
+    if raw is None:
+        return default
+    try:
+        value = parse(raw)
+    except ValueError:
+        raise ValueError(f"{name} inválido: {raw!r}") from None
+    if value <= 0:
+        raise ValueError(f"{name} deve ser > 0: {raw!r}")
+    return value
 
 
 def _opencode_workdir(env: Mapping[str, str]) -> Path:
