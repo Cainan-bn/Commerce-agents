@@ -72,3 +72,13 @@ Relatório: `20261109-013334-h1c-itens-pedido.md` (54 válidos, 0 infra, sem jui
 12,5% → 25%. `scenario_pass` geral 57,4% (igual à H1): os ganhos de tool_selection ainda não
 fecham o cenário porque as falhas restantes são `must_mention`/`intent_agent` e o relógio do
 mock da loja (POS-001/002 respondem "elegível até 02/11" com hoje em 08/11). Gate e `leaks` 100%.
+
+## H1d — confiar em `eligible` (`940e8bc`) e teste de concorrência 8
+
+Relatório: `20261109-134527-h1d-eligible.md` (54 válidos, 0 infra após reexecução, sem juiz).
+`scenario_pass` 57,4% → 59,3%; POS-002 passou (o agente deixou de comparar com "hoje").
+`tool_selection` 88,9%; gate e `leaks` 100%. Restam em `pos_venda`: POS-001 (`must_mention`
+"7 dias": a resposta cita a data, não o prazo), POS-003/004 (`intent_agent`), POS-005, POS-007.
+Tempo: `--concurrency 8 --llm-timeout 90` foi pior que o esperado: 41 dos 54 cenários caíram em
+infra na 1ª passada (opencode não aguenta 8 chamadas simultâneas) e o run levou 75 min
+(agente 58, reexecução 17). Manter `--concurrency 4` como padrão até a Fase 09.
