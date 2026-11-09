@@ -107,3 +107,37 @@ async def test_regra_de_devolucao_so_vai_para_pos_venda_identificado(intent: str
     system = await _system(intent, customer)
 
     assert REGRA_DEVOLUCAO not in system
+
+
+# ------------------------------------- confie no eligible e não compare datas (pos_venda)
+
+FRASE_ELIGIBLE = "confie no campo eligible"
+FRASE_DATA = "você não sabe a data de hoje"
+
+
+async def test_pos_venda_identificado_manda_confiar_em_eligible_e_nao_comparar_datas():
+    system = await _system("return_eligibility", "C1234")
+
+    regra = _linha_com(REGRA_DEVOLUCAO, system)
+
+    assert FRASE_ELIGIBLE in regra
+    assert FRASE_DATA in regra
+
+
+@pytest.mark.parametrize(
+    ("intent", "customer"),
+    [
+        ("order_status", "C1234"),
+        ("product_search", ""),
+        ("product_search", "C1234"),
+        ("policy_question", "C1234"),
+    ],
+    ids=["pedidos", "anonimo", "catalogo", "politicas"],
+)
+async def test_frases_de_elegibilidade_e_data_so_vao_para_pos_venda_identificado(
+    intent: str, customer: str
+):
+    system = await _system(intent, customer)
+
+    assert FRASE_ELIGIBLE not in system
+    assert FRASE_DATA not in system
