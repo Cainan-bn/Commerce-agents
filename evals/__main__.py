@@ -21,7 +21,7 @@ from evals.calibration import (
     sample_for_labeling,
     write_jsonl,
 )
-from evals.harness import build_real_deps, run_scenario
+from evals.harness import build_real_deps, build_shared_infra, run_scenario
 from evals.judge import JudgeResult, judge_scenario
 from evals.metrics import aggregate, evaluate
 from evals.report import build_report, build_trace_rows, write_report, write_traces
@@ -156,7 +156,11 @@ async def _run_all(
     from commerce_agents.infrastructure.llm.openai_compatible import build_provider_from_env
 
     llm = build_provider_from_env(environ)
+    if not scenarios:
+        return {}
     gate = asyncio.Semaphore(concurrency)
+    # Engine e embedder uma vez por chamada (não por cenário); a loja segue isolada por cenário.
+    shared = build_shared_infra()
 
     async def one(scenario: EvalScenario) -> tuple[str, Trace]:
         async with gate:
@@ -165,10 +169,21 @@ async def _run_all(
                 llm=llm,
                 model=environ.get("LLM_MODEL", ""),
                 llm_provider_name=environ.get("LLM_PROVIDER", ""),
+                shared=shared,
             )
             return scenario.id, await run_scenario(scenario, deps)
 
-    return dict(await asyncio.gather(*(one(s) for s in scenarios)))
+    tasks = [asyncio.ensure_future(one(s)) for s in scenarios]
+    try:
+        return dict(await asyncio.gather(*tasks))
+    except BaseException:
+        # Nenhum cenário pode seguir usando o engine depois do dispose.
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
+    finally:
+        await shared.engine.dispose()
 
 
 async def _judge_all(

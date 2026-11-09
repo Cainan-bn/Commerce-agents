@@ -12,7 +12,7 @@ from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from data.eval_scenarios_schema import IRREVERSIBLE_TOOLS, EvalScenario
@@ -36,6 +36,12 @@ from commerce_agents.infrastructure.agents.graph import GraphDeps, build_graph
 from commerce_agents.infrastructure.agents.service import ConversationService
 from evals.pricing import estimate_cost_usd, load_pricing
 from evals.trace import LLMCallRecord, ToolCallRecord, Trace, TurnRecord
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine
+
+    from commerce_agents.application.ports.embeddings import Embedder
+    from commerce_agents.application.ports.repositories import PolicyRetriever
 
 MAX_TURNS = 8
 CONFIRMATION_REPLY = "sim"
@@ -373,6 +379,35 @@ async def run_scenario(scenario: EvalScenario, deps: EvalDeps) -> Trace:
     return trace
 
 
+@dataclass(frozen=True)
+class SharedInfra:
+    """Peças caras e sem estado de cenário (pool do Postgres, modelo de embedding, retriever).
+
+    Criadas uma vez por `_run_all` e repassadas a cada `build_real_deps`; quem cria descarta o
+    engine (`await engine.dispose()`).
+    """
+
+    engine: "AsyncEngine"
+    embedder: "Embedder"
+    retriever: "PolicyRetriever"
+
+
+def build_shared_infra() -> SharedInfra:
+    """Um engine, um embedder e um retriever para todos os cenários de um run."""
+    from commerce_agents.infrastructure.persistence.database import (
+        create_engine,
+        create_session_factory,
+    )
+    from commerce_agents.infrastructure.persistence.migrate import sync_url_from_env
+    from commerce_agents.infrastructure.rag.embedder import FastEmbedEmbedder
+    from commerce_agents.infrastructure.rag.retriever import HybridPolicyRetriever
+
+    engine = create_engine(sync_url_from_env().replace("+psycopg", "+asyncpg"))
+    embedder = FastEmbedEmbedder()
+    retriever = HybridPolicyRetriever(create_session_factory(engine), embedder)
+    return SharedInfra(engine=engine, embedder=embedder, retriever=retriever)
+
+
 def build_real_deps(
     *,
     llm: LLMProvider,
@@ -380,6 +415,7 @@ def build_real_deps(
     model: str = "",
     llm_provider_name: str = "",
     temperature: float = 0.0,
+    shared: SharedInfra | None = None,
 ) -> EvalDeps:
     """Ambiente real: `mock_store` ASGI em memória, `ToolExecutor` real e retriever do Postgres."""
     import itertools
@@ -394,20 +430,13 @@ def build_real_deps(
         InMemoryIdempotencyRegistry,
         InMemoryTokenStore,
     )
-    from commerce_agents.infrastructure.persistence.database import (
-        create_engine,
-        create_session_factory,
-    )
-    from commerce_agents.infrastructure.persistence.migrate import sync_url_from_env
-    from commerce_agents.infrastructure.rag.embedder import FastEmbedEmbedder
-    from commerce_agents.infrastructure.rag.retriever import HybridPolicyRetriever
 
     app = create_app()
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://store")
     tokens = InMemoryTokenStore()
     idempotency = InMemoryIdempotencyRegistry()
-    engine = create_engine(sync_url_from_env().replace("+psycopg", "+asyncpg"))
-    retriever = HybridPolicyRetriever(create_session_factory(engine), FastEmbedEmbedder())
+    # Sem `shared`, cada cenário cria a sua (comportamento anterior).
+    retriever = (shared or build_shared_infra()).retriever
     executor = ToolExecutor(
         client=client,
         tokens=tokens,
