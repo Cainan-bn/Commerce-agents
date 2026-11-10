@@ -37,22 +37,42 @@ _tracer = trace.get_tracer(_SCOPE)
 _meter = metrics.get_meter(_SCOPE)
 _propagator = TraceContextTextMapPropagator()
 
+# Limites dos histogramas na escala das metas: os padrões do SDK (0, 5, 10, ...) tornam o p95
+# inútil. A meta do turno (4 s) é um limite exato.
+LATENCY_BUCKETS_S = (0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10, 15, 30)
+TOOL_LATENCY_BUCKETS_S = (0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.25, 0.5, 1, 2.5)
+TURN_COST_BUCKETS_USD = (0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 1)
+
 TURN_DURATION = _meter.create_histogram(
-    "conversation.turn.duration", unit="s", description="Latência de um turno do grafo"
+    "conversation.turn.duration",
+    unit="s",
+    description="Latência de um turno do grafo",
+    explicit_bucket_boundaries_advisory=LATENCY_BUCKETS_S,
 )
 LLM_CALLS = _meter.create_counter(
     "llm.calls", description="Chamadas de LLM do especialista por provider e resultado"
 )
-LLM_DURATION = _meter.create_histogram("llm.duration", unit="s", description="Latência do LLM")
+LLM_DURATION = _meter.create_histogram(
+    "llm.duration",
+    unit="s",
+    description="Latência do LLM",
+    explicit_bucket_boundaries_advisory=LATENCY_BUCKETS_S,
+)
 LLM_TOKENS = _meter.create_counter("llm.tokens", description="Tokens por provider e direção")
 LLM_COST = _meter.create_counter(
     "llm.cost.usd", unit="USD", description="Custo conhecido das chamadas por provider e modelo"
 )
 TURN_COST = _meter.create_histogram(
-    "conversation.turn.cost", unit="USD", description="Custo do LLM por turno de custo conhecido"
+    "conversation.turn.cost",
+    unit="USD",
+    description="Custo do LLM por turno de custo conhecido",
+    explicit_bucket_boundaries_advisory=TURN_COST_BUCKETS_USD,
 )
 TOOL_DURATION = _meter.create_histogram(
-    "tool.duration", unit="s", description="Latência das ferramentas por nome e resultado"
+    "tool.duration",
+    unit="s",
+    description="Latência das ferramentas por nome e resultado",
+    explicit_bucket_boundaries_advisory=TOOL_LATENCY_BUCKETS_S,
 )
 HANDOFFS = _meter.create_counter("handoff.requested", description="Handoffs por motivo")
 CIRCUIT_OPENED = _meter.create_counter(
