@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CommerceAgents · demonstração</title>
+    <style>
+      :root {
+        --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #5d6676; --line: #dde1e7;
+        --accent: #2457c5; --accent-text: #ffffff; --notice: #fff4d6; --notice-line: #e6c15c;
+        --me: #e4ecfb; --agent: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14171c; --card: #1d2128; --text: #e7eaf0; --muted: #9aa3b2; --line: #2f3540;
+          --accent: #6f9bff; --accent-text: #0e1320; --notice: #3a3220; --notice-line: #8a7337;
+          --me: #24324d; --agent: #1d2128;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--text);
+        font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      header, main { max-width: 64rem; margin: 0 auto; padding: 0 1rem; }
+      header h1 { font-size: 1.4rem; margin: 1.25rem 0 0.25rem; }
+      header p { margin: 0 0 1rem; color: var(--muted); }
+      #demo-notice {
+        display: block; background: var(--notice); border: 1px solid var(--notice-line);
+        border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem;
+      }
+      main { display: grid; grid-template-columns: minmax(0, 18rem) minmax(0, 1fr); gap: 1rem; }
+      @media (max-width: 720px) { main { grid-template-columns: minmax(0, 1fr); } }
+      section {
+        background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 1rem;
+      }
+      h2 { font-size: 1rem; margin: 0 0 0.75rem; }
+      #conversations { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+      #conversations li {
+        border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem 0.75rem;
+        display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+      }
+      #conversations li.active { border-color: var(--accent); }
+      .customer { display: block; color: var(--muted); font-size: 0.85rem; }
+      button {
+        font: inherit; cursor: pointer; border-radius: 6px; padding: 0.4rem 0.8rem;
+        border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text);
+      }
+      button:disabled { opacity: 0.5; cursor: default; }
+      #suggestions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+      #suggestions button { background: transparent; color: var(--accent); text-align: left; }
+      #transcript {
+        min-height: 16rem; max-height: 60vh; overflow-y: auto; display: flex;
+        flex-direction: column; gap: 0.5rem; padding: 0.25rem 0; margin-bottom: 0.75rem;
+      }
+      .bubble {
+        max-width: 85%; padding: 0.5rem 0.75rem; border-radius: 10px;
+        border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere;
+      }
+      .bubble.customer-msg { align-self: flex-end; background: var(--me); }
+      .bubble.agent-msg { align-self: flex-start; background: var(--agent); }
+      .bubble .who { display: block; font-size: 0.75rem; color: var(--muted); }
+      #status { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.75rem; }
+      form { display: flex; gap: 0.5rem; }
+      form input {
+        flex: 1; min-width: 0; font: inherit; padding: 0.4rem 0.6rem; border-radius: 6px;
+        border: 1px solid var(--line); background: var(--bg); color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>CommerceAgents</h1>
+      <p>Atendimento de e-commerce com agentes de IA, pelo canal web real.</p>
+      <div id="demo-notice" role="note">
+        <strong>Modo demonstração.</strong> As respostas vêm de conversas gravadas com o modelo
+        real; mensagens fora do roteiro recebem um aviso. Os clientes e pedidos são fictícios.
+      </div>
+    </header>
+    <main>
+      <section aria-labelledby="conversations-title">
+        <h2 id="conversations-title">Conversas gravadas</h2>
+        <ul id="conversations"></ul>
+      </section>
+      <section aria-labelledby="chat-title">
+        <h2 id="chat-title">Conversa</h2>
+        <p id="status">Escolha uma conversa para começar.</p>
+        <div id="suggestions" aria-label="Mensagens sugeridas"></div>
+        <div id="transcript" aria-live="polite"></div>
+        <form id="composer">
+          <input id="message" name="message" maxlength="4000" autocomplete="off"
+                 placeholder="Digite uma mensagem" disabled />
+          <button type="submit" id="send" disabled>Enviar</button>
+        </form>
+      </section>
+    </main>
+    <script>
+      (function () {
+        'use strict';
+        var state = { session: null, socket: null };
+        var list = document.getElementById('conversations');
+        var suggestions = document.getElementById('suggestions');
+        var transcript = document.getElementById('transcript');
+        var statusLine = document.getElementById('status');
+        var composer = document.getElementById('composer');
+        var input = document.getElementById('message');
+        var sendButton = document.getElementById('send');
+
+        function el(tag, className, text) {
+          var node = document.createElement(tag);
+          if (className) node.className = className;
+          if (text !== undefined) node.textContent = text; // conteúdo do servidor: só texto
+          return node;
+        }
+
+        function setStatus(text) { statusLine.textContent = text; }
+
+        function addBubble(who, text, mine) {
+          var bubble = el('div', 'bubble ' + (mine ? 'customer-msg' : 'agent-msg'));
+          bubble.appendChild(el('span', 'who', who));
+          bubble.appendChild(document.createTextNode(String(text)));
+          transcript.appendChild(bubble);
+          transcript.scrollTop = transcript.scrollHeight;
+        }
+
+        function messageId() {
+          if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return 'demo-' + window.crypto.randomUUID();
+          }
+          return 'demo-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+        }
+
+        function socketUrl(wsPath, token) {
+          var url = new URL(wsPath, window.location.href);
+          url.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          if (!url.searchParams.get('token')) url.searchParams.set('token', token);
+          return url.toString();
+        }
+
+        function onSocketMessage(event) {
+          var data;
+          try { data = JSON.parse(event.data); } catch (error) { return; }
+          if (!data || typeof data.text !== 'string') return;
+          var who = data.source === 'human' ? 'Atendente' : 'Agente';
+          addBubble(who, data.text, false);
+        }
+
+        async function send(text) {
+          if (!state.session || !text) return;
+          addBubble('Você', text, true);
+          var sessionId = state.session.conversation_id.replace(/^web:/, '');
+          try {
+            var response = await fetch('/webhooks/web', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Web-Session': state.session.token },
+              body: JSON.stringify({ session_id: sessionId, message_id: messageId(), text: text }),
+            });
+            if (!response.ok) setStatus('Falha ao enviar (' + response.status + ').');
+          } catch (error) {
+            setStatus('Falha de rede ao enviar a mensagem.');
+          }
+        }
+
+        function showSuggestions(messages) {
+          suggestions.replaceChildren();
+          messages.forEach(function (text) {
+            var button = el('button', '', text);
+            button.type = 'button';
+            button.setAttribute('data-suggested', '');
+            button.addEventListener('click', function () { send(text); });
+            suggestions.appendChild(button);
+          });
+        }
+
+        async function start(conversation, item) {
+          if (state.socket) state.socket.close();
+          state.session = null;
+          transcript.replaceChildren();
+          Array.prototype.forEach.call(list.children, function (li) { li.classList.remove('active'); });
+          item.classList.add('active');
+          setStatus('Abrindo sessão…');
+          try {
+            var response = await fetch('/demo/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ customer_id: conversation.customer_id }),
+            });
+            if (!response.ok) throw new Error('status ' + response.status);
+            var session = await response.json();
+            state.session = session;
+            var socket = new WebSocket(socketUrl(session.ws_path, session.token));
+            socket.onmessage = onSocketMessage;
+            socket.onclose = function () { if (state.socket === socket) setStatus('Conexão encerrada.'); };
+            state.socket = socket;
+            setStatus('Conectado como ' + conversation.customer_id + '. Clique numa sugestão.');
+            showSuggestions(conversation.messages || []);
+            input.disabled = false;
+            sendButton.disabled = false;
+          } catch (error) {
+            setStatus('Não foi possível abrir a sessão.');
+          }
+        }
+
+        function renderConversations(conversations) {
+          list.replaceChildren();
+          conversations.forEach(function (conversation) {
+            var item = el('li');
+            item.setAttribute('data-conversation-id', conversation.id);
+            var label = el('div');
+            label.appendChild(el('span', 'title', conversation.title));
+            label.appendChild(el('span', 'customer', 'Cliente ' + conversation.customer_id));
+            var button = el('button', '', 'Iniciar');
+            button.type = 'button';
+            button.setAttribute('data-action', 'start');
+            button.addEventListener('click', function () { start(conversation, item); });
+            item.appendChild(label);
+            item.appendChild(button);
+            list.appendChild(item);
+          });
+        }
+
+        composer.addEventListener('submit', function (event) {
+          event.preventDefault();
+          var text = input.value.trim();
+          input.value = '';
+          send(text);
+        });
+
+        fetch('/demo/conversations')
+          .then(function (response) { return response.json(); })
+          .then(function (body) { renderConversations(body.conversations || []); })
+          .catch(function () { setStatus('Não foi possível carregar as conversas.'); });
+      })();
+    </script>
+  </body>
+</html>

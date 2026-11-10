@@ -4,13 +4,16 @@ import asyncio
 import hmac
 import json
 import logging
+import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import quote
 
+import yaml
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +27,7 @@ from commerce_agents.application.dto.channels import (
 from commerce_agents.application.dto.events import InboundMessageReceived
 from commerce_agents.application.ports.channels import HandoffRepository
 from commerce_agents.application.ports.messaging import EventBus
+from commerce_agents.application.ports.repositories import CustomerRepository
 from commerce_agents.application.use_cases.request_handoff import (
     ClaimHandoff,
     CloseHandoff,
@@ -34,12 +38,15 @@ from commerce_agents.domain.shared.errors import InvalidStateTransition
 from commerce_agents.infrastructure.messaging.hub import PanelHub
 from commerce_agents.interfaces.webhooks.instagram import normalize_instagram
 from commerce_agents.interfaces.webhooks.signature import verify_signature
-from commerce_agents.interfaces.webhooks.web import verify_web_session
+from commerce_agents.interfaces.webhooks.web import sign_web_session, verify_web_session
 from commerce_agents.interfaces.webhooks.whatsapp import normalize_whatsapp
 
 logger = logging.getLogger(__name__)
 
 PANEL_DIR = Path(__file__).resolve().parents[3] / "panel"
+DEMO_PAGE = Path(__file__).resolve().parent / "demo" / "index.html"
+DEMO_CONVERSATIONS = Path(__file__).resolve().parents[3] / "data" / "demo" / "conversations.yaml"
+DEMO_SESSION_TTL = timedelta(hours=1)
 _WS_POLICY_VIOLATION = 1008
 _MAX_TEXT = 4000
 
@@ -61,6 +68,10 @@ class ApiDeps:
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC))
     background: Callable[[], Awaitable[None]] | None = None  # consumidores ligados ao hub
     panel_dir: Path = PANEL_DIR
+    # Modo demonstração (ADR 0020): sem ele as rotas /demo* nem são registradas.
+    demo_mode: bool = False
+    customers: CustomerRepository | None = None
+    demo_conversations: Path = DEMO_CONVERSATIONS
 
 
 class _WebMessage(BaseModel):
@@ -69,6 +80,12 @@ class _WebMessage(BaseModel):
     session_id: str = Field(min_length=1)
     message_id: str = Field(min_length=1)
     text: str = Field(min_length=1)
+
+
+class _DemoSessionBody(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    customer_id: str = Field(min_length=1, max_length=64)
 
 
 class _ClaimBody(BaseModel):
@@ -187,6 +204,9 @@ def create_app(deps: ApiDeps) -> FastAPI:
         await publish_inbound([event])
         return {"accepted": 1}
 
+    if deps.demo_mode:
+        _demo_routes(app, deps)
+
     # ------------------------------------------------------------------ painel
     @app.get("/panel")
     async def panel_page() -> FileResponse:
@@ -280,3 +300,30 @@ def create_app(deps: ApiDeps) -> FastAPI:
         return JSONResponse({"detail": error.detail}, status_code=error.status_code)
 
     return app
+
+
+def _demo_routes(app: FastAPI, deps: ApiDeps) -> None:
+    """Página e sessão do modo demonstração (ADR 0020). Nunca registradas fora dele."""
+
+    @app.get("/demo")
+    async def demo_page() -> FileResponse:
+        return FileResponse(DEMO_PAGE, media_type="text/html; charset=utf-8")
+
+    @app.get("/demo/conversations")
+    async def demo_conversations() -> dict[str, Any]:
+        data = yaml.safe_load(deps.demo_conversations.read_text(encoding="utf-8"))
+        return {"conversations": data["conversations"]}
+
+    @app.post("/demo/session")
+    async def demo_session(body: _DemoSessionBody) -> dict[str, str]:
+        if deps.customers is None or await deps.customers.get(body.customer_id) is None:
+            raise HTTPException(status_code=404, detail="cliente não encontrado")
+        session_id = uuid.uuid4().hex
+        expires_at = deps.clock() + DEMO_SESSION_TTL
+        token = sign_web_session(deps.web_session_secret, session_id, body.customer_id, expires_at)
+        conversation_id = conversation_id_for(Channel.WEB, session_id)
+        return {
+            "token": token,
+            "conversation_id": conversation_id,
+            "ws_path": f"/ws/web/{quote(conversation_id, safe='')}",
+        }

@@ -19,6 +19,7 @@ from typing import Any
 from commerce_agents.application.dto.views import LLMMessage, LLMResult, PolicyChunk
 from commerce_agents.application.ports.llm import LLMProvider
 from commerce_agents.application.ports.repositories import PolicyRetriever
+from commerce_agents.infrastructure.llm.recorded import llm_cassette_key
 
 Record = dict[str, Any]
 Sink = Callable[[Record], None]
@@ -59,12 +60,8 @@ def _digest(payload: Any) -> str:
 
 
 def llm_key(messages: list[LLMMessage], max_tokens: int) -> str:
-    return _digest(
-        {
-            "messages": [{"role": m.role, "content": m.content} for m in messages],
-            "max_tokens": max_tokens,
-        }
-    )
+    """Mesma chave do provider gravado da demonstração (ADR 0020)."""
+    return llm_cassette_key(messages, max_tokens)
 
 
 def retrieval_key(query: str, top_k: int) -> str:
