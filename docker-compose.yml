@@ -77,10 +77,8 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.164.0
     restart: unless-stopped
+    # Exporter do Langfuse é opcional: docker-compose.langfuse.yml (make up-langfuse).
     command: ["--config=file:/etc/otelcol-contrib/config.yaml"]
-    environment:
-      # Credencial do Langfuse só no ambiente do collector (ADR 0018); ver .env.example.
-      LANGFUSE_OTLP_AUTH: ${LANGFUSE_OTLP_AUTH:-}
     ports:
       - "4317:4317"
       - "4318:4318"

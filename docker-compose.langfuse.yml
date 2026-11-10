@@ -1,0 +1,26 @@
+# Override opcional: liga o exporter do Langfuse no otel-collector (ADR 0018).
+# Uso: make up-langfuse
+#   (= docker compose -f docker-compose.yml -f docker-compose.langfuse.yml up -d)
+# Requer LANGFUSE_OTLP_AUTH no .env (ver .env.example).
+
+services:
+  otel-collector:
+    command:
+      - "--config=file:/etc/otelcol-contrib/config.yaml"
+      - "--config=file:/etc/otelcol-contrib/langfuse.yaml"
+    environment:
+      LANGFUSE_OTLP_AUTH: ${LANGFUSE_OTLP_AUTH:?defina LANGFUSE_OTLP_AUTH no .env para usar o Langfuse}
+    volumes:
+      - ./docker/otel/otel-collector.langfuse.yaml:/etc/otelcol-contrib/langfuse.yaml:ro
+    depends_on:
+      langfuse:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/otelcol-contrib",
+          "validate",
+          "--config=file:/etc/otelcol-contrib/config.yaml",
+          "--config=file:/etc/otelcol-contrib/langfuse.yaml",
+        ]

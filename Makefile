@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick eval-holdout eval-record eval-ci load run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
+.PHONY: help doctor setup up up-langfuse down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick eval-holdout eval-record eval-ci load run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
 
 SEED_OUT ?= data/seed
 
@@ -44,6 +44,9 @@ up: ## Sobe a stack local com docker compose
 	else \
 		echo "[up] docker-compose.yml ausente (TASK-01-03); nada a subir"; \
 	fi
+
+up-langfuse: ## Sobe a stack local com o exporter do Langfuse no collector (exige LANGFUSE_OTLP_AUTH)
+	docker compose -f docker-compose.yml -f docker-compose.langfuse.yml up -d
 
 down: ## Derruba a stack local
 	@if [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f compose.yml ]; then \
