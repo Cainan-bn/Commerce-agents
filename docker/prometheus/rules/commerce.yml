@@ -1,0 +1,33 @@
+# Alertas como código (ADR 0018). Nomes de métricas: docker/grafana/dashboards/METRICAS.md.
+# Teste: docker/prometheus/tests/commerce.test.yml (promtool test rules).
+groups:
+  - name: commerce-agents
+    rules:
+      - alert: TurnoLentoP95
+        expr: >-
+          histogram_quantile(0.95, sum by (le) (rate(conversation_turn_duration_seconds_bucket[5m])))
+          > 4
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 do turno acima de 4 s há 5 min"
+          description: "p95 atual: {{ $value | humanizeDuration }} (meta: 4 s)."
+
+      - alert: CircuitoLLMAberto
+        expr: sum by (provider) (increase(llm_circuit_opened_total[5m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuito do LLM abriu ({{ $labels.provider }})"
+          description: "O circuit breaker do provider {{ $labels.provider }} abriu nos últimos 5 min."
+
+      - alert: TaxaErroLLMAlta
+        expr: >-
+          sum(rate(llm_calls_total{outcome!="ok"}[5m])) / sum(rate(llm_calls_total[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Mais de 20% das chamadas de LLM falhando há 5 min"
+          description: "Taxa de erro atual: {{ $value | humanizePercentage }}."

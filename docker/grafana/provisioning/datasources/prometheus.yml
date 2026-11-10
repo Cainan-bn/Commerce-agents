@@ -1,4 +1,4 @@
-# Datasource provisionado como código; dashboards ficam para o próximo card.
+# Datasource provisionado como código; os dashboards o referenciam pelo uid `prometheus`.
 apiVersion: 1
 
 datasources:

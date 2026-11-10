@@ -1,0 +1,14 @@
+# Dashboards como código (ADR 0018): JSON em docker/grafana/dashboards, montado pelo compose.
+apiVersion: 1
+
+providers:
+  - name: commerce-agents
+    orgId: 1
+    folder: CommerceAgents
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

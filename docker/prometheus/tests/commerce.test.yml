@@ -1,0 +1,96 @@
+# promtool test rules docker/prometheus/tests/commerce.test.yml
+rule_files:
+  - ../rules/commerce.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Turnos de 5 s (bucket le=4 vazio): p95 > 4 s dispara depois de 5 min, não antes.
+  - interval: 1m
+    input_series:
+      - series: 'conversation_turn_duration_seconds_bucket{le="1"}'
+        values: "0x20"
+      - series: 'conversation_turn_duration_seconds_bucket{le="4"}'
+        values: "0x20"
+      - series: 'conversation_turn_duration_seconds_bucket{le="10"}'
+        values: "0+10x20"
+      - series: 'conversation_turn_duration_seconds_bucket{le="+Inf"}'
+        values: "0+10x20"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: TurnoLentoP95
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: TurnoLentoP95
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "p95 do turno acima de 4 s há 5 min"
+              description: "p95 atual: 9.7s (meta: 4 s)."
+
+  # Turnos rápidos (todos em le=1): sem alerta.
+  - interval: 1m
+    input_series:
+      - series: 'conversation_turn_duration_seconds_bucket{le="1"}'
+        values: "0+10x20"
+      - series: 'conversation_turn_duration_seconds_bucket{le="4"}'
+        values: "0+10x20"
+      - series: 'conversation_turn_duration_seconds_bucket{le="+Inf"}'
+        values: "0+10x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: TurnoLentoP95
+        exp_alerts: []
+
+  # Circuito abre aos 3 min: alerta imediato, some depois da janela de 5 min.
+  - interval: 1m
+    input_series:
+      - series: 'llm_circuit_opened_total{provider="primario"}'
+        values: "0 0 0 1 1 1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: CircuitoLLMAberto
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: CircuitoLLMAberto
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              provider: primario
+            exp_annotations:
+              summary: "Circuito do LLM abriu (primario)"
+              description: "O circuit breaker do provider primario abriu nos últimos 5 min."
+      - eval_time: 12m
+        alertname: CircuitoLLMAberto
+        exp_alerts: []
+
+  # 30% de erro sustentado dispara; 10% não.
+  - interval: 1m
+    input_series:
+      - series: 'llm_calls_total{provider="primario",outcome="ok"}'
+        values: "0+7x20"
+      - series: 'llm_calls_total{provider="primario",outcome="unavailable"}'
+        values: "0+3x20"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: TaxaErroLLMAlta
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: TaxaErroLLMAlta
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Mais de 20% das chamadas de LLM falhando há 5 min"
+              description: "Taxa de erro atual: 30%."
+  - interval: 1m
+    input_series:
+      - series: 'llm_calls_total{provider="primario",outcome="ok"}'
+        values: "0+9x20"
+      - series: 'llm_calls_total{provider="primario",outcome="unavailable"}'
+        values: "0+1x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: TaxaErroLLMAlta
+        exp_alerts: []
