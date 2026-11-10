@@ -1,7 +1,9 @@
 """Provider gravado do modo demonstração (ADR 0020).
 
 Lê um cassete no formato do eval (ADR 0016) e responde só o que foi gravado com o modelo real.
-Diferente do replay do eval, chave ausente não é erro: devolve `DEMO_MISS_REPLY`.
+Diferente do replay do eval, chave ausente não é erro: devolve `DEMO_MISS_REPLY` como resposta
+final do protocolo do especialista (ADR 0013), para o cliente ver o aviso sem o grafo saber de
+demonstração; para o roteador ela continua inválida e vira pedido de esclarecimento.
 `RecordingLLM` grava esse cassete pelo caminho real (`LLM_RECORD_TO`, só `make demo-record`).
 """
 
@@ -11,6 +13,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from commerce_agents.application.dto.agents import FinalAnswer
 from commerce_agents.application.dto.views import LLMMessage, LLMResult
 from commerce_agents.application.ports.llm import LLMProvider
 from commerce_agents.infrastructure.telemetry import RECORDED_MISS
@@ -30,6 +33,7 @@ DEMO_MISS_REPLY = (
     "Estou em modo demonstração e só sei responder às conversas gravadas. "
     "Experimente uma das mensagens sugeridas ao lado."
 )
+_MISS_CONTENT = FinalAnswer(text=DEMO_MISS_REPLY).model_dump_json()
 
 
 def llm_cassette_key(messages: list[LLMMessage], max_tokens: int) -> str:
@@ -66,7 +70,7 @@ class RecordedLLMProvider:
             RECORDED_MISS.add(1)
             logger.warning("demonstração: chamada fora do cassete (chave %s)", key[:12])
             return LLMResult(
-                content=DEMO_MISS_REPLY,
+                content=_MISS_CONTENT,
                 model=RECORDED_MODEL,
                 input_tokens=0,
                 output_tokens=0,
