@@ -120,15 +120,42 @@ sem vulnerabilidade crítica ou alta corrigível.
   (`docker-compose.prod.yml`), não medida com mais de uma máquina.
 - Canais WhatsApp/Instagram são adapters testados contra a especificação, sem conta real.
 
-## Como foi construído
+## Decisões de design e trade-offs
 
-Planejado em fases (backlog, ADR antes de cada decisão, TDD com o teste escrito antes da
-implementação, um PR por fase com CI verde). A implementação foi feita por um time de agentes de IA
-(Claude Code) coordenado no Maestri: um agente arquiteto planejava, escrevia os ADRs e revisava; um
-escrevia testes e infraestrutura; outro implementava. Revisões e medições acharam defeitos reais,
-registrados em cada fase, por exemplo: histogramas com escala errada que faziam todo p95 parecer
-4,75 s, trace partido no outbox, 161 testes de domínio fora do CI e o token de sessão aparecendo no
-log de acesso. Histórico em [`docs/orchestration/`](docs/orchestration/).
+- **O LLM decide, o servidor garante.** Escopo do cliente, posse do pedido e confirmação de ações
+  irreversíveis são verificados fora do modelo (`ScopedToolInvoker`, preflight e token de uso único
+  que o LLM nunca vê). Prompt injection pode mudar o que o modelo tenta, não o que o sistema executa
+  ([ADR 0010](docs/adr/0010-defesa-contra-prompt-injection.md), [0011](docs/adr/0011-consumo-do-token-no-servidor-da-ferramenta.md)).
+- **Avaliação antes de ajuste.** Baseline fixado antes de mexer em prompt; uma hipótese por vez,
+  medida contra o run anterior; métricas determinísticas como critério e juiz LLM calibrado contra
+  rótulos humanos só como sinal secundário; erros de infraestrutura fora das taxas; holdout rodado
+  uma única vez ([ADR 0015](docs/adr/0015-provider-openai-compativel-e-simulador-por-regra.md)).
+- **Gate de CI hermético por replay.** O eval real não é determinístico nem barato; o CI reproduz
+  respostas gravadas e barra regressões de lógica e de segurança. O custo: mudar prompt exige
+  regravar com o modelo real, o que obriga a medir antes de mudar ([ADR 0016](docs/adr/0016-gate-de-eval-no-ci-por-replay.md)).
+- **Degradar para humano, não para esclarecimento.** Sem LLM, o roteador não classifica a mensagem
+  como ambígua (o cliente ficaria preso pedindo esclarecimento): a conversa vai para um atendente.
+  Resposta malformada continua tratada como ambígua ([ADR 0017](docs/adr/0017-resiliencia-do-provider-de-llm.md)).
+- **Novas tentativas só no último provider da cadeia.** Com fallback configurado, repetir no
+  primário só atrasa a troca; medido no caos: p95 de 30,9 s para 7,3 s ([ADR 0019](docs/adr/0019-resultados-de-carga-e-gargalos.md)).
+- **Sem cache semântico.** As respostas dependem de dados do cliente e da loja; um acerto falso daria
+  informação errada ou de outra pessoa. O ganho ficaria restrito a perguntas de política, que já são
+  baratas.
+- **Escala por partição, não por concorrência no worker.** A chave `conversation_id` garante ordem
+  por conversa; réplicas no mesmo grupo de consumo escalam sem fila por conversa no código.
+- **Privacidade na telemetria.** Spans e métricas levam identificadores e números, nunca texto do
+  cliente, prompt ou token; nenhum identificador de conversa vira label de métrica
+  ([ADR 0018](docs/adr/0018-observabilidade-com-opentelemetry.md)).
+
+## Processo de engenharia
+
+Desenvolvido em fases, com ADR antes de cada decisão significativa, testes escritos antes da
+implementação e um PR por fase com CI verde (lint, `mypy --strict`, contratos de arquitetura,
+unitários, integração, gate de avaliação, build da imagem com Trivy). Medições e revisões acharam
+defeitos que testes de unidade não pegavam, todos registrados com a correção: histogramas na escala
+errada (todo p95 abaixo de 5 s aparecia como 4,75 s), trace partido no outbox, 161 testes de domínio
+fora do gate do CI, token de sessão no log de acesso, dependências de runtime declaradas só como
+dependências de desenvolvimento. Histórico por fase em [`docs/orchestration/`](docs/orchestration/).
 
 ## Desenvolvimento
 
