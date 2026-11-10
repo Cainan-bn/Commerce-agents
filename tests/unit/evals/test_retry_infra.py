@@ -229,7 +229,9 @@ def test_makefile_passa_retry_infra_por_padrao():
     eval_lines = [
         line
         for line in makefile.splitlines()
-        if "python -m evals run" in line and "holdout" not in line
+        if "python -m evals run" in line
+        # holdout é manual; eval-record e eval-ci (replay, ADR 0016) têm política própria
+        and not any(alvo in line for alvo in ("holdout", "--record", "--label ci"))
     ]
 
     assert len(eval_lines) == 2
