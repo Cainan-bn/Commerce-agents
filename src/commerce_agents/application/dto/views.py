@@ -61,6 +61,8 @@ class LLMResult(StrictModel):
     model: str
     input_tokens: int = Field(ge=0)
     output_tokens: int = Field(ge=0)
+    # Elo que respondeu (ADR 0017): preenchido pelo breaker/fallback; `None` sem resiliência.
+    provider: str | None = None
 
 
 class IntentDecision(StrictModel):

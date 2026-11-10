@@ -34,7 +34,7 @@ from commerce_agents.infrastructure.agents.handlers import make_search_policies_
 from commerce_agents.infrastructure.agents.memory import SqlCustomerMemory
 from commerce_agents.infrastructure.agents.router import LLMIntentRouter
 from commerce_agents.infrastructure.agents.service import ConversationService
-from commerce_agents.infrastructure.llm.openai_compatible import build_provider_from_env
+from commerce_agents.infrastructure.llm.resilience import build_resilient_llm
 from commerce_agents.infrastructure.mcp.executor import ToolExecutor
 from commerce_agents.infrastructure.messaging.bus import KafkaEventBus, consume
 from commerce_agents.infrastructure.messaging.hub import PanelHub
@@ -112,10 +112,10 @@ class UnconfiguredLLM:
 
 
 def llm_from_env(env: Mapping[str, str]) -> LLMProvider:
-    """Provider de `LLM_*`; sem `LLM_MODEL`, o placeholder cuja falha o grafo trata."""
+    """Provider de `LLM_*` com breaker e fallback (ADR 0017); sem `LLM_MODEL`, o placeholder."""
     if not env.get("LLM_MODEL"):
         return UnconfiguredLLM()
-    return build_provider_from_env(env)
+    return build_resilient_llm(env)
 
 
 class BusHandoffNotifier:
