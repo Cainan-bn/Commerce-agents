@@ -35,6 +35,7 @@ from commerce_agents.domain.conversation.channel import Channel
 from commerce_agents.infrastructure.agents.graph import GraphDeps, build_graph
 from commerce_agents.infrastructure.agents.service import ConversationService
 from evals.pricing import estimate_cost_usd, load_pricing
+from evals.replay import CassetteMissError, capture_misses
 from evals.trace import LLMCallRecord, ToolCallRecord, Trace, TurnRecord
 
 if TYPE_CHECKING:
@@ -297,7 +298,18 @@ def _hook_router_failure(router: IntentRouter, recorder: _Recorder) -> Callable[
 
 
 async def run_scenario(scenario: EvalScenario, deps: EvalDeps) -> Trace:
-    """Roda os turnos do cenário (máx. `MAX_TURNS`) e devolve o `Trace`; nunca levanta."""
+    """Roda os turnos do cenário (máx. `MAX_TURNS`) e devolve o `Trace`.
+
+    Só levanta `CassetteMissError` (replay sem gravação): não é infraestrutura, é cassete velho.
+    """
+    with capture_misses() as misses:
+        trace = await _run_turns(scenario, deps)
+    if misses:
+        raise misses[0]
+    return trace
+
+
+async def _run_turns(scenario: EvalScenario, deps: EvalDeps) -> Trace:
     deps.reset()
     recorder = _Recorder()
     restore_router = _hook_router_failure(deps.router, recorder)
@@ -367,6 +379,8 @@ async def run_scenario(scenario: EvalScenario, deps: EvalDeps) -> Trace:
                     break  # o cliente simulado não confirma o que o cenário proíbe
                 if proposed in confirmable:
                     queue.appendleft(CONFIRMATION_REPLY)
+    except CassetteMissError:
+        raise
     except Exception as error:
         recorder.fail("harness", error)
 
@@ -416,6 +430,7 @@ def build_real_deps(
     llm_provider_name: str = "",
     temperature: float = 0.0,
     shared: SharedInfra | None = None,
+    retriever: "PolicyRetriever | None" = None,
 ) -> EvalDeps:
     """Ambiente real: `mock_store` ASGI em memória, `ToolExecutor` real e retriever do Postgres."""
     import itertools
@@ -435,8 +450,10 @@ def build_real_deps(
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://store")
     tokens = InMemoryTokenStore()
     idempotency = InMemoryIdempotencyRegistry()
-    # Sem `shared`, cada cenário cria a sua (comportamento anterior).
-    retriever = (shared or build_shared_infra()).retriever
+    # `retriever` explícito (replay/gravação) dispensa a infra; sem `shared`, cada cenário cria
+    # a sua (comportamento anterior).
+    if retriever is None:
+        retriever = (shared or build_shared_infra()).retriever
     executor = ToolExecutor(
         client=client,
         tokens=tokens,
