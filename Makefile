@@ -2,9 +2,12 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up up-langfuse down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick eval-holdout eval-record eval-ci load load-caos-fallback run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
+.PHONY: help doctor setup up up-langfuse down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick eval-holdout eval-record eval-ci load load-caos-fallback demo-record demo-verify run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
 
 SEED_OUT ?= data/seed
+DEMO_CASSETTE ?= data/demo/cassette.jsonl
+DEMO_API_URL ?= http://localhost:8000
+PROD_COMPOSE ?= docker compose -f docker-compose.prod.yml
 
 help: ## Lista os alvos disponiveis
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -140,6 +143,31 @@ load: ## Carga k6 (SCENARIO=webhook|conversa|caos|trace|all; APP_DIR=worktree; v
 
 load-caos-fallback: ## Caos com LLM_FALLBACK_* = 2o stub (remedicao do ADR 0019; mesmas variaveis de make load)
 	FALLBACK=1 load/run.sh caos
+
+demo-record: ## Grava o cassete da demo pelo caminho real (opencode no host; so o autor; ADR 0020)
+	docker compose up -d postgres redpanda otel-collector jaeger
+	$(MAKE) --no-print-directory seed-db ingest-policies
+	@set -a; if [ -f .env ]; then . ./.env; fi; set +a; \
+	: "$${LLM_MODEL:?defina LLM_MODEL (modelo do opencode, provedor/modelo)}"; \
+	rm -f $(DEMO_CASSETTE); \
+	export DEMO_MODE=true LLM_PROVIDER=opencode-cli LLM_RECORD_TO=$(DEMO_CASSETTE) \
+		WEB_SESSION_SECRET=$${WEB_SESSION_SECRET:-demo-record-local}; \
+	uv run uvicorn commerce_agents.interfaces.main:app --port 8000 & api=$$!; \
+	uv run python -m commerce_agents.interfaces.worker all & worker=$$!; \
+	trap 'kill $$api $$worker 2> /dev/null || true' EXIT; \
+	for i in $$(seq 1 60); do curl -sf $(DEMO_API_URL)/health > /dev/null && break; sleep 1; done; \
+	uv run python scripts/demo_drive.py --api-url $(DEMO_API_URL) --timeout 300
+
+demo-verify: ## Reproduz o cassete da demo na stack de producao e falha fora do roteiro (DEMO_KEEP=1 mantem no ar)
+	@test -f $(DEMO_CASSETTE) || { echo "[demo-verify] $(DEMO_CASSETTE) ausente: rode make demo-record"; exit 1; }
+	@export DEMO_MODE=true LLM_PROVIDER=recorded LLM_CASSETTE=/app/data/demo/cassette.jsonl \
+		APP_IMAGE=$${APP_IMAGE:-commerce-agents:local} \
+		POSTGRES_PASSWORD=$${POSTGRES_PASSWORD:-demo-local} WEB_SESSION_SECRET=$${WEB_SESSION_SECRET:-demo-local} \
+		PANEL_TOKEN=$${PANEL_TOKEN:-demo-local} GRAFANA_ADMIN_PASSWORD=$${GRAFANA_ADMIN_PASSWORD:-demo-local}; \
+	$(PROD_COMPOSE) up -d --build; \
+	trap '[ "$${DEMO_KEEP:-0}" = 1 ] || $(PROD_COMPOSE) down' EXIT; \
+	for i in $$(seq 1 120); do curl -sf $(DEMO_API_URL)/health > /dev/null && break; sleep 2; done; \
+	uv run python scripts/demo_drive.py --api-url $(DEMO_API_URL) --timeout 120 --expect-no-miss
 
 run-api: ## Sobe a API de canais e o painel (porta 8000; requer Postgres e Redpanda do compose)
 	@set -a; \
