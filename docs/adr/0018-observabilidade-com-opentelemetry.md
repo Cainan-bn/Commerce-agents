@@ -58,3 +58,16 @@ Opção 1.
 - Telemetria: `gen_ai.usage.cost_usd` no span `llm.complete` e contador `llm.cost.usd{provider, model}` quando o custo é conhecido; `conversation.turn.cost_usd` no span raiz e histograma `conversation.turn.cost{channel}` só se todas as chamadas do turno tiverem custo. Nenhuma métrica de custo leva `conversation_id`.
 - O roteador de intenção usa o mesmo provider instrumentado (`composition.build_router`), então suas chamadas entram nos spans, nas métricas e no custo do turno.
 - Trace pelo outbox: a linha guarda o `traceparent` do turno; o relay publica num span `outbox.publish` filho dele, e a entrega abre `channel.send` (`ChannelRouter` e `PanelHub`, só identificadores), fechando turno → outbox → broker → envio num único trace.
+
+## Adendo (Fase 09, 2026-11-10): Langfuse opcional, buckets e dashboards
+
+- O Langfuse deixou de ser sempre ligado: sem credencial, o exporter logava erro de autenticação, e
+  a stack dele (ClickHouse, S3, worker) não cabe ao lado do resto numa máquina de 4 GB. O collector
+  base (`docker/otel/otel-collector.yaml`) só exporta para Jaeger e Prometheus;
+  `docker/otel/otel-collector.langfuse.yaml` + `docker-compose.langfuse.yml` (`make up-langfuse`)
+  acrescentam o pipeline de spans de LLM e exigem `LANGFUSE_OTLP_AUTH`.
+- Histogramas com limites explícitos na escala das metas (`explicit_bucket_boundaries_advisory`):
+  os limites padrão do SDK são de milissegundos e faziam todo p95 abaixo de 5 s sair 4,75 s.
+- Dashboards (atendimento, LLM, ferramentas) e alertas (turno lento, circuito aberto, erro do LLM)
+  versionados em `docker/grafana/` e `docker/prometheus/`, com os nomes reais das métricas no
+  Prometheus em `docker/grafana/dashboards/METRICAS.md`.
