@@ -1,0 +1,31 @@
+# Conversas do modo demonstração (ADR 0020). Gravadas com o modelo real por `make demo-record`;
+# a página /demo sugere estas mensagens, na ordem, para o cliente escolhido.
+# Mudar uma mensagem, um prompt ou uma ferramenta exige regravar o cassete da demonstração.
+conversations:
+  - id: rastreio
+    title: Onde está meu pedido
+    customer_id: C0200
+    messages:
+      - Oi! Quero saber onde está o meu pedido que já foi enviado.
+  - id: cancelamento
+    title: Cancelar com confirmação
+    customer_id: C0167
+    messages:
+      - Quero cancelar o meu pedido que ainda está em processamento.
+      - Sim, pode cancelar.
+  - id: troca
+    title: Política de troca
+    customer_id: C0053
+    messages:
+      - Qual é o prazo para trocar um produto que não serviu?
+  - id: estoque-frete
+    title: Estoque e frete
+    customer_id: C0010
+    messages:
+      - Vocês têm o Tênis Urban Run no tamanho 37?
+      - Quanto fica o frete para o CEP 01310-100?
+  - id: humano
+    title: Falar com um atendente
+    customer_id: C0193
+    messages:
+      - Quero falar com um atendente humano, por favor.

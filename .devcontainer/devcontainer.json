@@ -1,0 +1,24 @@
+{
+  // Codespaces / Dev Containers (ADR 0020): roda `make demo` no navegador, sem instalar nada.
+  "name": "CommerceAgents",
+  "build": { "dockerfile": "Dockerfile" },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" }
+  },
+  "hostRequirements": { "cpus": 2, "memory": "8gb" },
+  // venv fora do workspace: não colide com o .venv de quem abre o repositório localmente.
+  "containerEnv": { "UV_PROJECT_ENVIRONMENT": "/home/vscode/.venvs/commerce-agents" },
+  "forwardPorts": [8000, 3001, 16686],
+  "portsAttributes": {
+    "8000": { "label": "API, /demo e painel", "onAutoForward": "notify" },
+    "3001": { "label": "Grafana", "onAutoForward": "silent" },
+    "16686": { "label": "Jaeger", "onAutoForward": "silent" }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "charliermarsh.ruff", "ms-azuretools.vscode-docker"]
+    }
+  }
+}

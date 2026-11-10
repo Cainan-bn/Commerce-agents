@@ -141,3 +141,16 @@ class CollectingPanelForwarder:
 
     async def __call__(self, handoff_id: str, text: str) -> None:
         self.forwarded.append((handoff_id, text))
+
+
+class InMemoryCustomerRepository:
+    """`CustomerRepository` em memória (modo demonstração: só `get` importa)."""
+
+    def __init__(self, customers: Sequence[Any] = ()) -> None:
+        self._customers = {customer.customer_id: customer for customer in customers}
+
+    async def get(self, customer_id: str) -> Any:
+        return self._customers.get(customer_id)
+
+    async def save(self, customer: Any) -> None:
+        self._customers[customer.customer_id] = customer

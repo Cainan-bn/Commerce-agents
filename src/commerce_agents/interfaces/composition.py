@@ -56,7 +56,10 @@ from commerce_agents.infrastructure.persistence.identity import SqlIdentityResol
 from commerce_agents.infrastructure.persistence.inbound_ledger import SqlInboundLedger
 from commerce_agents.infrastructure.persistence.migrate import sync_url_from_env
 from commerce_agents.infrastructure.persistence.outbox import SqlOutboxRelay
-from commerce_agents.infrastructure.persistence.repositories import SqlConversationRepository
+from commerce_agents.infrastructure.persistence.repositories import (
+    SqlConversationRepository,
+    SqlCustomerRepository,
+)
 from commerce_agents.infrastructure.persistence.token_store import SqlConfirmationTokenStore
 from commerce_agents.infrastructure.rag.embedder import FastEmbedEmbedder
 from commerce_agents.infrastructure.rag.retriever import HybridPolicyRetriever
@@ -92,6 +95,7 @@ class Settings:
     panel_token: str
     purge_interval_s: int = DEFAULT_PURGE_INTERVAL_S
     retention_days: int = DEFAULT_RETENTION_DAYS
+    demo_mode: bool = False
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
@@ -110,6 +114,7 @@ class Settings:
             panel_token=env.get("PANEL_TOKEN", ""),
             purge_interval_s=int(env.get("PURGE_INTERVAL_S", DEFAULT_PURGE_INTERVAL_S)),
             retention_days=int(env.get("RETENTION_DAYS", DEFAULT_RETENTION_DAYS)),
+            demo_mode=env.get("DEMO_MODE", "").strip().lower() in {"1", "true"},
         )
 
 
@@ -121,8 +126,11 @@ class UnconfiguredLLM:
 
 
 def llm_from_env(env: Mapping[str, str]) -> LLMProvider:
-    """Provider de `LLM_*` com breaker e fallback (ADR 0017); sem `LLM_MODEL`, o placeholder."""
-    if not env.get("LLM_MODEL"):
+    """Provider de `LLM_*` com breaker e fallback (ADR 0017); sem `LLM_MODEL`, o placeholder.
+
+    O provider gravado da demonstração (ADR 0020) não tem modelo e passa pelo mesmo breaker.
+    """
+    if not env.get("LLM_MODEL") and env.get("LLM_PROVIDER") != "recorded":
         return UnconfiguredLLM()
     return build_resilient_llm(env)
 
@@ -307,4 +315,6 @@ def build_api(settings: Settings) -> ApiDeps:
         panel_token=settings.panel_token,
         clock=utcnow,
         background=background,
+        demo_mode=settings.demo_mode,
+        customers=SqlCustomerRepository(factory) if settings.demo_mode else None,
     )

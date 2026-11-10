@@ -156,6 +156,12 @@ def _build(env: Mapping[str, str], model_var: str) -> LLMProvider:
             max_concurrency=int(_env_number(env, "LLM_OPENCODE_MAX_CONCURRENCY", int, 4)),
             max_retries=_env_retries(env, 2),
         )
+    if provider == "recorded":
+        from commerce_agents.infrastructure.llm.recorded import RecordedLLMProvider
+
+        if not env.get("LLM_CASSETTE"):
+            raise ValueError("LLM_CASSETTE é obrigatório com LLM_PROVIDER=recorded")
+        return RecordedLLMProvider(Path(env["LLM_CASSETTE"]))
     if provider == "openai-compatible":
         if not env.get("LLM_API_KEY"):
             raise ValueError("LLM_API_KEY é obrigatório com LLM_PROVIDER=openai-compatible")
@@ -168,7 +174,9 @@ def _build(env: Mapping[str, str], model_var: str) -> LLMProvider:
             timeout=_env_number(env, "LLM_TIMEOUT_S", float, 60.0),
             max_retries=_env_retries(env, 3),
         )
-    raise ValueError(f"LLM_PROVIDER inválido: {provider!r} (use opencode-cli ou openai-compatible)")
+    raise ValueError(
+        f"LLM_PROVIDER inválido: {provider!r} (use opencode-cli, openai-compatible ou recorded)"
+    )
 
 
 def _env_number(

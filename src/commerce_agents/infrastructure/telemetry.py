@@ -82,6 +82,9 @@ CIRCUIT_OPENED = _meter.create_counter(
 FALLBACK_USED = _meter.create_counter(
     "llm.fallback.used", description="Respostas dadas por um provider de fallback"
 )
+RECORDED_MISS = _meter.create_counter(
+    "llm.recorded.miss", description="Chamadas sem resposta no cassete da demonstração"
+)
 
 # Motivos de handoff fixados em código; o resto (texto do LLM em request_handoff) vira um só.
 _HANDOFF_REASONS = frozenset(
