@@ -31,6 +31,19 @@ própria de um provider compatível com OpenAI (`LLM_PROVIDER=openai-compatible`
 conversa livremente. Os segredos que o `make demo` usa são valores locais de demonstração, não
 configuração de produção. Detalhes no [ADR 0020](docs/adr/0020-distribuicao-e-modo-demonstracao.md).
 
+A loja simulada guarda o estado em memória: conversas que mudam dados (o cancelamento) funcionam uma
+vez por subida; `make demo-reset` reinicia a loja para repetir. Nos GIFs, as respostas são do modelo
+real e o tempo é o da reprodução gravada, não a latência do LLM (a latência medida está em
+[Resultados](#resultados-medidos)).
+
+<details>
+<summary>A mesma conversa só com cURL (webhook + WebSocket)</summary>
+
+![Conversa pelo canal web com cURL](docs/media/demo-curl.gif)
+
+`scripts/demo_curl.sh`
+</details>
+
 ## O problema
 
 Uma loja online pequena perde vendas fora do horário comercial, e o time gasta a maior parte do
@@ -107,6 +120,10 @@ sem vulnerabilidade crítica ou alta corrigível.
 | Painel humano em handoff | Trace de ponta a ponta | Dashboard de atendimento |
 |---|---|---|
 | ![Painel](docs/media/painel-handoff.png) | ![Trace](docs/media/jaeger-trace.png) | ![Grafana](docs/media/grafana-atendimento.png) |
+
+No dashboard, o custo aparece sem dados porque o modo demonstração não chama um LLM pago (custo
+desconhecido é `None`, nunca um zero inventado); o pico inicial de latência é o carregamento do
+modelo de embeddings na primeira consulta de uma stack nova.
 
 ## Limites conhecidos
 
