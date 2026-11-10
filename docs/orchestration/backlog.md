@@ -151,12 +151,14 @@ Regras: TDD por par (OPS escreve o teste em red, CORE implementa); escalonar ao 
 | TASK-09-05 | OPS | 09-02, 09-03 | Scripts k6 e relatório em `load/reports/` |
 | TASK-09-06 | LÍDER | 09-05 | ADR de resultados e gargalos |
 
-## Fase 10 — `fase/10-deploy-e-release`
+## Fase 10 — `fase/10-deploy-e-release` (escopo do ADR 0020: sem servidor, modo demonstração)
 
 | Card | Agente | Depende de | Objetivo |
 |---|---|---|---|
-| TASK-10-01 | OPS | 09 | Dockerfiles multi-stage, GHCR, Trivy |
-| TASK-10-02 | OPS | 10-01 | `docker-compose.prod.yml`, migrations como job |
-| TASK-10-03 | OPS | 10-02 | Workflow de deploy com smoke test |
-| TASK-10-04 | LÍDER | 10-03 | README final como case de portfólio |
-| TASK-10-05 | LÍDER | 10-04 | Revisão final, tag `v1.0.0`, GitHub Release |
+| TASK-10-00 | LÍDER | 09 | ADR 0020 (distribuição sem servidor e modo demonstração) |
+| TASK-10-01 | OPS/CORE | 10-00 | Modo demonstração: provider `recorded`, rota `/demo` com sessão emitida só com `DEMO_MODE` (red → green) |
+| TASK-10-02 | OPS | 10-00 | Imagem com entrypoint por serviço, `docker-compose.prod.yml` (migração e tópicos como job, partições, réplicas), GHCR + Trivy na tag |
+| TASK-10-03 | OPS | 10-01, 10-02 | `make demo`, `.devcontainer/` (Codespaces), smoke test do compose de produção no CI |
+| TASK-10-04 | LÍDER | 10-03 | Gravar o cassete da demonstração (`make demo-record`) |
+| TASK-10-05 | LÍDER | 10-04 | README final como case de portfólio (resultados, limites, roteiro do vídeo) |
+| TASK-10-06 | LÍDER | 10-05 | Revisão final, tag `v1.0.0`, GitHub Release |
