@@ -1,0 +1,45 @@
+# LLM simulado (load/stub_llm) dentro da stack de produção, sem chave de API: validação local,
+# smoke e gravação do GIF do README. Uso (na raiz do repositório):
+#   docker compose -f docker-compose.prod.yml -f load/docker-compose.stub-llm.yml \
+#     --env-file .env.prod up -d
+x-stub-llm-env: &stub-llm-env
+  LLM_PROVIDER: openai-compatible
+  LLM_BASE_URL: http://llm-stub:8090/v1
+  LLM_MODEL: stub-model
+  LLM_API_KEY: stub-sem-segredo  # pragma: allowlist secret
+
+services:
+  llm-stub:
+    image: ${APP_IMAGE:-ghcr.io/cainan-bn/commerce-agents:latest}
+    restart: unless-stopped
+    command: ["python", "/stub/server.py"]
+    environment:
+      LLM_STUB_HOST: 0.0.0.0
+      LLM_STUB_PORT: "8090"
+      LLM_STUB_LATENCY_MS: ${LLM_STUB_LATENCY_MS:-800}
+      LLM_STUB_JITTER_MS: ${LLM_STUB_JITTER_MS:-100}
+    volumes:
+      - ./load/stub_llm:/stub:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=2)",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  api:
+    environment:
+      <<: *stub-llm-env
+
+  worker:
+    environment:
+      <<: *stub-llm-env
+    depends_on:
+      llm-stub:
+        condition: service_healthy

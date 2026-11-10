@@ -1,19 +1,17 @@
-.git
-.github
-.venv
-__pycache__
-*.pyc
-*.pyo
-.pytest_cache
-.mypy_cache
-.ruff_cache
-.coverage
-coverage.xml
-htmlcov
-.env
-.env.*
-.maestri
-.claude
-node_modules
-docs
-tests
+# Contexto mínimo: a imagem só copia src, mock_store, scripts/load_seed.py, data/{seed,policies,demo},
+# panel/{index.html,src} e docker/app (ver Dockerfile).
+**
+!pyproject.toml
+!uv.lock
+!README.md
+!src/**
+!mock_store/**
+!scripts/load_seed.py
+!data/seed/**
+!data/policies/**
+!data/demo/**
+!panel/index.html
+!panel/src/**
+!docker/app/**
+**/__pycache__
+**/*.pyc

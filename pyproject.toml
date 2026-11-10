@@ -12,6 +12,7 @@ dependencies = [
   "aiokafka>=0.15.0",
   "alembic>=1.14",
   "asyncpg>=0.30",
+  "fastapi>=0.115",
   "fastembed>=0.9.1",
   "httpx>=0.28.1",
   "langgraph>=1.2.20",
@@ -23,14 +24,15 @@ dependencies = [
   "pgvector>=0.5.1",
   "psycopg[binary]>=3.2",
   "pydantic>=2.0",
+  "pyyaml>=6.0",
   "sqlalchemy[asyncio]>=2.0",
+  "uvicorn>=0.32",
 ]
 
 [dependency-groups]
 dev = [
   "commitizen>=3.31",
   "detect-secrets>=1.5",
-  "fastapi>=0.115",
   "httpx>=0.28",
   "hypothesis>=6.0",
   "import-linter>=2.0",
@@ -39,11 +41,9 @@ dev = [
   "pytest>=8.3",
   "pytest-asyncio>=0.24",
   "pytest-cov>=6.0",
-  "pyyaml>=6.0",
   "types-pyyaml>=6.0",
   "ruff==0.8.4",
   "testcontainers[postgres]>=4.8",
-  "uvicorn>=0.32",
 ]
 
 [tool.uv]

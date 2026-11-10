@@ -8,7 +8,7 @@ Ambiente (valores iniciais; `POST /admin/mode` muda em tempo de execução):
 - LLM_STUB_LATENCY_MS (padrão 800) e LLM_STUB_JITTER_MS (padrão 100): espera por chamada;
 - LLM_STUB_FAIL_RATE (0 a 1, padrão 0): fração de chamadas que devolvem 500;
 - LLM_STUB_DOWN=1: toda chamada devolve 503 (provider fora do ar);
-- LLM_STUB_PORT (padrão 8090).
+- LLM_STUB_PORT (padrão 8090) e LLM_STUB_HOST (padrão 127.0.0.1; 0.0.0.0 dentro de container).
 
 Uso: uv run python load/stub_llm/server.py
 """
@@ -166,7 +166,7 @@ def create_app(env: dict[str, str] | None = None) -> FastAPI:
 if __name__ == "__main__":
     uvicorn.run(
         create_app(),
-        host="127.0.0.1",
+        host=os.environ.get("LLM_STUB_HOST", "127.0.0.1"),
         port=int(os.environ.get("LLM_STUB_PORT", "8090")),
         log_level="warning",
     )
