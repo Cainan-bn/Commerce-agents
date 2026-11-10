@@ -14,6 +14,7 @@ from typing import Literal, Protocol
 from commerce_agents.application.dto.views import LLMMessage, LLMResult
 from commerce_agents.application.ports.llm import LLMProvider, LLMUnavailableError
 from commerce_agents.infrastructure.llm.openai_compatible import build_provider_from_env
+from commerce_agents.infrastructure.llm.recorded import RecordingLLM
 from commerce_agents.infrastructure.telemetry import CIRCUIT_OPENED, FALLBACK_USED
 
 logger = logging.getLogger(__name__)
@@ -171,7 +172,14 @@ def build_resilient_llm(
 
     Com secundário, o primário não repete (ADR 0019): a falha passa logo ao próximo elo e o
     breaker do primário abre em segundos; só o último elo da cadeia faz novas tentativas.
+    Com `LLM_RECORD_TO`, cada adaptador ganha um gravador por dentro do breaker (ADR 0020):
+    só respostas reais vão ao cassete da demonstração.
     """
+    record_to = env.get("LLM_RECORD_TO")
+    if record_to:
+        if env.get("LLM_PROVIDER") == "recorded":
+            raise ValueError("LLM_RECORD_TO não combina com LLM_PROVIDER=recorded")
+        build_provider = _recording(build_provider, record_to)
     secondary_env = _fallback_env(env)
     if secondary_env is None:
         return CircuitBreakerLLM(build_provider(env), name=PRIMARY_NAME, clock=clock)
@@ -180,3 +188,10 @@ def build_resilient_llm(
     )
     secondary = CircuitBreakerLLM(build_provider(secondary_env), name=FALLBACK_NAME, clock=clock)
     return FallbackLLM([primary, secondary])
+
+
+def _recording(build_provider: BuildProvider, path: str) -> BuildProvider:
+    def build(env: Mapping[str, str]) -> LLMProvider:
+        return RecordingLLM(build_provider(env), path)
+
+    return build

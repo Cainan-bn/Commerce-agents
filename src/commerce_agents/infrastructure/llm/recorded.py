@@ -2,16 +2,28 @@
 
 Lê um cassete no formato do eval (ADR 0016) e responde só o que foi gravado com o modelo real.
 Diferente do replay do eval, chave ausente não é erro: devolve `DEMO_MISS_REPLY`.
+`RecordingLLM` grava esse cassete pelo caminho real (`LLM_RECORD_TO`, só `make demo-record`).
 """
 
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from commerce_agents.application.dto.views import LLMMessage, LLMResult
+from commerce_agents.application.ports.llm import LLMProvider
+from commerce_agents.infrastructure.telemetry import RECORDED_MISS
 
-__all__ = ["DEMO_MISS_REPLY", "RECORDED_MODEL", "RecordedLLMProvider", "llm_cassette_key"]
+__all__ = [
+    "DEMO_MISS_REPLY",
+    "RECORDED_MODEL",
+    "RecordedLLMProvider",
+    "RecordingLLM",
+    "llm_cassette_key",
+]
+
+logger = logging.getLogger(__name__)
 
 RECORDED_MODEL = "recorded"
 DEMO_MISS_REPLY = (
@@ -48,8 +60,11 @@ class RecordedLLMProvider:
         self._records = _load(Path(cassette_path))
 
     async def complete(self, messages: list[LLMMessage], *, max_tokens: int) -> LLMResult:
-        record = self._records.get(llm_cassette_key(messages, max_tokens))
+        key = llm_cassette_key(messages, max_tokens)
+        record = self._records.get(key)
         if record is None:
+            RECORDED_MISS.add(1)
+            logger.warning("demonstração: chamada fora do cassete (chave %s)", key[:12])
             return LLMResult(
                 content=DEMO_MISS_REPLY,
                 model=RECORDED_MODEL,
@@ -64,3 +79,40 @@ class RecordedLLMProvider:
             output_tokens=int(record.get("output_tokens", 0)),
             provider=RECORDED_MODEL,
         )
+
+
+class RecordingLLM:
+    """Repassa ao `inner` e acrescenta ao cassete cada resposta real, uma linha por chave.
+
+    Continua um cassete existente sem duplicar chaves; erro do `inner` propaga sem gravar.
+    """
+
+    def __init__(self, inner: LLMProvider, path: Path | str) -> None:
+        self.inner = inner
+        self._path = Path(path)
+        self._keys = set(_load(self._path)) if self._path.exists() else set()
+
+    @property
+    def model(self) -> str:
+        return str(getattr(self.inner, "model", ""))
+
+    async def complete(self, messages: list[LLMMessage], *, max_tokens: int) -> LLMResult:
+        result = await self.inner.complete(messages, max_tokens=max_tokens)
+        key = llm_cassette_key(messages, max_tokens)
+        if key not in self._keys:
+            self._append(
+                {
+                    "kind": "llm",
+                    "key": key,
+                    "content": result.content,
+                    "input_tokens": result.input_tokens,
+                    "output_tokens": result.output_tokens,
+                }
+            )
+            self._keys.add(key)
+        return result
+
+    def _append(self, record: dict[str, Any]) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        with self._path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
