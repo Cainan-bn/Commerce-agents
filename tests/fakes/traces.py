@@ -118,3 +118,29 @@ def scenario(
             leaks=leaks,
         ),
     )
+
+
+def scenario_unchecked(
+    *,
+    intent: str,
+    agent: str,
+    tools: list[tuple[str, dict[str, Any]]],
+    forbidden_tools: list[str],
+    must_mention: list[str],
+) -> EvalScenario:
+    """Cenário com vocabulário fora do sistema (sentinelas), sem passar pelos validadores.
+
+    Para testes que provam que valores de `expected` nunca vazam: nomes reais poderiam aparecer
+    no texto por outro motivo.
+    """
+    base = scenario()
+    expected = base.expected.model_copy(
+        update={
+            "intent": intent,
+            "agent": agent,
+            "tools": [ToolCall.model_construct(name=name, args=args) for name, args in tools],
+            "forbidden_tools": forbidden_tools,
+            "must_mention": must_mention,
+        }
+    )
+    return base.model_copy(update={"expected": expected})

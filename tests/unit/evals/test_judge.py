@@ -8,7 +8,7 @@ import pytest
 
 from commerce_agents.application.ports.llm import LLMUnavailableError
 from tests.fakes.scripted_llm import ScriptedLLM
-from tests.fakes.traces import call, scenario, trace, turn
+from tests.fakes.traces import call, scenario, scenario_unchecked, trace, turn
 
 pytestmark = pytest.mark.unit
 
@@ -163,13 +163,12 @@ def test_user_traz_conversa_chamadas_de_ferramenta_e_citacoes():
 
 
 def test_prompt_nunca_inclui_valores_de_expected():
-    scn = scenario(
+    scn = scenario_unchecked(
         intent="intencao_xq",
         agent="agente_xq",
         tools=[("ferramenta_xq", {"order_id": "PEDIDO_XQ"})],
         forbidden_tools=["proibida_xq"],
         must_mention=["termo_xq"],
-        outcome="resolved",
     )
     tr = trace(
         turns=[turn(text="pergunta do cliente", reply="resposta do agente", agent="pedidos")],

@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from tests.fakes.evals import make_eval_deps
-from tests.fakes.traces import call, scenario, trace, turn
+from tests.fakes.traces import call, scenario, scenario_unchecked, trace, turn
 
 pytestmark = pytest.mark.unit
 
@@ -191,7 +191,7 @@ def test_system_orienta_fidelidade_pelo_resultado_e_utilidade_pela_identificacao
 def test_prompt_continua_sem_valores_de_expected():
     from evals.judge import build_judge_messages
 
-    scn = scenario(
+    scn = scenario_unchecked(
         intent="intencao_xq",
         agent="agente_xq",
         tools=[("ferramenta_xq", {"order_id": "PEDIDO_XQ"})],

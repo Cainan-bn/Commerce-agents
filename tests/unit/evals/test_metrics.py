@@ -346,7 +346,7 @@ def test_aggregate_separa_por_categoria():
     )
     b = metrics.evaluate(
         trace(turns=[turn(intent="x", agent="y")]),
-        scenario(category="catalogo", intent="z", agent="w"),
+        scenario(category="catalogo", intent="product_search", agent="catalogo"),
     )
 
     aggregate = metrics.aggregate([a, b])
