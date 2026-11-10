@@ -159,14 +159,15 @@ demo-record: ## Grava o cassete da demo pelo caminho real (loja fake, API e work
 	for i in $$(seq 1 60); do curl -sf $(DEMO_API_URL)/health > /dev/null && break; sleep 1; done; \
 	uv run python scripts/demo_drive.py --api-url $(DEMO_API_URL) --timeout 300
 
-demo-verify: ## Reproduz o cassete da demo na stack de producao e falha fora do roteiro (DEMO_KEEP=1 mantem no ar)
+demo-verify: ## Reproduz o cassete da demo na stack de producao, de volumes limpos (DEMO_KEEP=1 mantem no ar)
 	@test -f $(DEMO_CASSETTE) || { echo "[demo-verify] $(DEMO_CASSETTE) ausente: rode make demo-record"; exit 1; }
 	@export DEMO_MODE=true LLM_PROVIDER=recorded LLM_CASSETTE=/app/data/demo/cassette.jsonl \
 		APP_IMAGE=$${APP_IMAGE:-commerce-agents:local} \
 		POSTGRES_PASSWORD=$${POSTGRES_PASSWORD:-demo-local} WEB_SESSION_SECRET=$${WEB_SESSION_SECRET:-demo-local} \
 		PANEL_TOKEN=$${PANEL_TOKEN:-demo-local} GRAFANA_ADMIN_PASSWORD=$${GRAFANA_ADMIN_PASSWORD:-demo-local}; \
+	$(PROD_COMPOSE) down -v --remove-orphans; \
 	$(PROD_COMPOSE) up -d --build; \
-	trap '[ "$${DEMO_KEEP:-0}" = 1 ] || $(PROD_COMPOSE) down' EXIT; \
+	trap '[ "$${DEMO_KEEP:-0}" = 1 ] || $(PROD_COMPOSE) down -v' EXIT; \
 	for i in $$(seq 1 120); do curl -sf $(DEMO_API_URL)/health > /dev/null && break; sleep 2; done; \
 	uv run python scripts/demo_drive.py --api-url $(DEMO_API_URL) --timeout 120 --expect-no-miss
 
