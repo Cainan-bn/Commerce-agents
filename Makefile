@@ -2,12 +2,19 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up up-langfuse down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick eval-holdout eval-record eval-ci load load-caos-fallback demo-record demo-verify run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
+.PHONY: help doctor setup up up-langfuse down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick eval-holdout eval-record eval-ci load load-caos-fallback demo-record demo-verify demo demo-down run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
 
 SEED_OUT ?= data/seed
 DEMO_CASSETTE ?= data/demo/cassette.jsonl
 DEMO_API_URL ?= http://localhost:8000
 PROD_COMPOSE ?= docker compose -f docker-compose.prod.yml
+# Ambiente da demonstração local (ADR 0020): LLM gravado e segredos só de demonstração, se o
+# ambiente não trouxer outros. Nunca use estes valores fora da máquina local.
+DEMO_ENV = export DEMO_MODE=true LLM_PROVIDER=recorded LLM_CASSETTE=/app/data/demo/cassette.jsonl \
+	APP_IMAGE=$${APP_IMAGE:-commerce-agents:local} \
+	POSTGRES_PASSWORD=$${POSTGRES_PASSWORD:-demo-local} WEB_SESSION_SECRET=$${WEB_SESSION_SECRET:-demo-local} \
+	PANEL_TOKEN=$${PANEL_TOKEN:-demo-local} GRAFANA_ADMIN_USER=$${GRAFANA_ADMIN_USER:-admin} \
+	GRAFANA_ADMIN_PASSWORD=$${GRAFANA_ADMIN_PASSWORD:-demo-local}
 
 help: ## Lista os alvos disponiveis
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -161,15 +168,32 @@ demo-record: ## Grava o cassete da demo pelo caminho real (loja fake, API e work
 
 demo-verify: ## Reproduz o cassete da demo na stack de producao, de volumes limpos (DEMO_KEEP=1 mantem no ar)
 	@test -f $(DEMO_CASSETTE) || { echo "[demo-verify] $(DEMO_CASSETTE) ausente: rode make demo-record"; exit 1; }
-	@export DEMO_MODE=true LLM_PROVIDER=recorded LLM_CASSETTE=/app/data/demo/cassette.jsonl \
-		APP_IMAGE=$${APP_IMAGE:-commerce-agents:local} \
-		POSTGRES_PASSWORD=$${POSTGRES_PASSWORD:-demo-local} WEB_SESSION_SECRET=$${WEB_SESSION_SECRET:-demo-local} \
-		PANEL_TOKEN=$${PANEL_TOKEN:-demo-local} GRAFANA_ADMIN_PASSWORD=$${GRAFANA_ADMIN_PASSWORD:-demo-local}; \
+	@$(DEMO_ENV); \
 	$(PROD_COMPOSE) down -v --remove-orphans; \
 	$(PROD_COMPOSE) up -d --build; \
 	trap '[ "$${DEMO_KEEP:-0}" = 1 ] || $(PROD_COMPOSE) down -v' EXIT; \
 	for i in $$(seq 1 120); do curl -sf $(DEMO_API_URL)/health > /dev/null && break; sleep 2; done; \
 	uv run python scripts/demo_drive.py --api-url $(DEMO_API_URL) --timeout 120 --expect-no-miss
+
+demo: ## Sobe a demonstracao local (LLM gravado, sem chave de API) e imprime as URLs; derrube com make demo-down
+	@test -f $(DEMO_CASSETTE) || { echo "[demo] $(DEMO_CASSETTE) ausente: rode make demo-record"; exit 1; }
+	@$(DEMO_ENV); \
+	$(PROD_COMPOSE) down -v --remove-orphans; \
+	$(PROD_COMPOSE) up -d --build; \
+	echo "[demo] aguardando a API em $(DEMO_API_URL)/health"; \
+	for i in $$(seq 1 120); do curl -sf $(DEMO_API_URL)/health > /dev/null && break; sleep 2; done; \
+	curl -sf $(DEMO_API_URL)/health > /dev/null \
+		|| { echo "[demo] a API nao respondeu; veja: $(PROD_COMPOSE) logs api"; exit 1; }; \
+	echo ""; \
+	echo "  Demonstracao:   $(DEMO_API_URL)/demo"; \
+	echo "  Painel humano:  $(DEMO_API_URL)/panel  (token: $$PANEL_TOKEN)"; \
+	echo "  Grafana:        http://localhost:3001  ($$GRAFANA_ADMIN_USER / $$GRAFANA_ADMIN_PASSWORD)"; \
+	echo "  Jaeger:         http://localhost:16686"; \
+	echo ""; \
+	echo "  Derrube com: make demo-down"
+
+demo-down: ## Derruba a demonstracao local e apaga os volumes
+	@$(DEMO_ENV); $(PROD_COMPOSE) down -v --remove-orphans
 
 run-api: ## Sobe a API de canais e o painel (porta 8000; requer Postgres e Redpanda do compose)
 	@set -a; \
