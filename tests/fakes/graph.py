@@ -67,3 +67,24 @@ class GraphHarness:
             config={"configurable": {"thread_id": conversation_id}},
         )
         return state
+
+
+class CostedLLM(ProviderLLM):
+    """`ProviderLLM` cujo `LLMResult` traz `cost_usd`, um custo por chamada (Fase 09)."""
+
+    def __init__(
+        self,
+        provider: str,
+        responses: list[str | Exception],
+        costs: list[float | None],
+        *,
+        model: str = "scripted-test",
+    ) -> None:
+        super().__init__(provider, responses)
+        self._model = model
+        self._costs = list(costs)
+
+    async def complete(self, messages: list[LLMMessage], *, max_tokens: int) -> LLMResult:
+        result = await super().complete(messages, max_tokens=max_tokens)
+        # Construção validada: `model_copy(update=...)` aceitaria um campo inexistente.
+        return LLMResult(**result.model_dump(exclude={"cost_usd"}), cost_usd=self._costs.pop(0))
