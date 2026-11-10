@@ -8,12 +8,29 @@ receivers:
 
 processors:
   batch: {}
+  # Langfuse recebe só os spans de LLM (ADR 0018); o trace completo vai para o Jaeger.
+  filter/llm:
+    error_mode: ignore
+    traces:
+      span:
+        - 'name != "llm.complete"'
 
 exporters:
   otlp/jaeger:
     endpoint: jaeger:4317
     tls:
       insecure: true
+  # Métricas OTel expostas para o Prometheus raspar (job otel-collector).
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+  # Langfuse via OTLP/HTTP. LANGFUSE_OTLP_AUTH = base64("<public_key>:<secret_key>"),
+  # definido só no ambiente do collector (.env, nunca no repositório).
+  otlphttp/langfuse:
+    endpoint: http://langfuse:3000/api/public/otel
+    headers:
+      Authorization: "Basic ${env:LANGFUSE_OTLP_AUTH}"
   debug:
     verbosity: basic
 
@@ -28,6 +45,14 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlp/jaeger]
+    traces/langfuse:
+      receivers: [otlp]
+      processors: [filter/llm, batch]
+      exporters: [otlphttp/langfuse]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
   telemetry:
     logs:
       level: info
