@@ -96,11 +96,16 @@ async def test_erro_de_infraestrutura_vira_infra_error_sem_levantar():
     assert "roteador" in trace.infra_error
 
 
-async def test_queda_do_llm_dentro_do_roteador_marca_infra_error():
+@pytest.mark.parametrize(
+    "motivo", ["opencode fora do ar", "circuito aberto: primario"], ids=["fora", "circuito"]
+)
+async def test_queda_do_llm_dentro_do_roteador_marca_infra_error(motivo: str):
+    """Regressão (adendo do ADR 0017): o roteador agora propaga a queda e o grafo faz handoff;
+    o harness continua contando como infra_error, nunca como falha do agente."""
     from commerce_agents.application.ports.llm import LLMUnavailableError
     from commerce_agents.infrastructure.agents.router import LLMIntentRouter
 
-    roteador = LLMIntentRouter(ScriptedLLM([LLMUnavailableError("opencode fora do ar")]))
+    roteador = LLMIntentRouter(ScriptedLLM([LLMUnavailableError(motivo)]))
     deps = make_eval_deps([_final("ok")], router=roteador)
 
     trace = await _harness().run_scenario(scenario(), deps)

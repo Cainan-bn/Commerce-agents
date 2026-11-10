@@ -2,6 +2,8 @@
 
 - Provider sempre caído atrás do circuit breaker: a primeira conversa degrada para humano
   (`llm_indisponivel`) e a segunda nem chega ao provider (circuito aberto), sem gastar tempo.
+- Roteador sem LLM (adendo do ADR 0017): a indisponibilidade propagada pelo roteador vira
+  `llm_unavailable()` com handoff `llm_indisponivel`, sem chamar o especialista.
 - Loja devolvendo 503 ou estourando o timeout em `get_order_status`: o erro chega ao LLM como
   resultado de ferramenta, nenhuma ação irreversível é feita e nenhuma exceção vaza.
 """
@@ -39,7 +41,19 @@ class DownProvider:
         raise LLMUnavailableError("timeout do provider")
 
 
-def _graph(llm: Any, tools: Any, published: list[Any]) -> Any:
+class DownRouter(FakeRouter):
+    """Roteador cujo provider caiu: propaga `LLMUnavailableError` (contrato do adendo)."""
+
+    def __init__(self, error: Exception) -> None:
+        super().__init__("order_status")
+        self.error = error
+
+    async def route(self, text: str) -> Any:
+        self.calls.append(text)
+        raise self.error
+
+
+def _graph(llm: Any, tools: Any, published: list[Any], router: Any = None) -> Any:
     from langgraph.checkpoint.memory import MemorySaver
 
     from commerce_agents.infrastructure.agents.graph import GraphDeps, build_graph
@@ -49,7 +63,7 @@ def _graph(llm: Any, tools: Any, published: list[Any]) -> Any:
 
     deps = GraphDeps(
         llm=llm,
-        router=FakeRouter("order_status"),
+        router=router or FakeRouter("order_status"),
         tools=tools,
         tokens=InMemoryTokenStore(),
         publish_event=publish,
@@ -100,6 +114,71 @@ async def test_provider_caido_primeira_conversa_faz_handoff_e_a_segunda_nao_cham
     assert gasto < 0.05
     assert segunda["reply"] == llm_unavailable()
     assert [h.reason for h in _handoffs(published)] == ["llm_indisponivel"] * 2
+
+
+# ---------------------------------------------------------------- roteador sem LLM
+
+
+@pytest.mark.parametrize(
+    "erro",
+    [
+        LLMUnavailableError("provider respondeu 503"),
+        LLMUnavailableError("circuito aberto: primario"),
+    ],
+    ids=["provider_fora", "circuito_aberto"],
+)
+async def test_roteador_indisponivel_faz_handoff_sem_chamar_o_especialista(
+    erro: LLMUnavailableError,
+):
+    especialista = ScriptedLLM([])  # qualquer chamada falharia com ScriptedLLMExhausted
+    published: list[Any] = []
+    graph = _graph(especialista, StoreStub({}), published, router=DownRouter(erro))
+
+    estado = await _turn(graph, "conv-roteador-1", "onde está meu pedido?")
+
+    assert estado["reply"] == llm_unavailable()
+    assert estado["handoff_reason"] == "llm_indisponivel"
+    assert [h.reason for h in _handoffs(published)] == ["llm_indisponivel"]
+    assert especialista.calls == []
+
+
+async def test_roteador_real_com_provider_caido_faz_handoff():
+    from commerce_agents.infrastructure.agents.router import LLMIntentRouter
+    from commerce_agents.infrastructure.llm.resilience import CircuitBreakerLLM
+
+    clock = FakeMonotonic()
+    inner = DownProvider(clock)
+    llm = CircuitBreakerLLM(
+        inner, name="primario", failure_threshold=1, window_s=60, open_s=30, clock=clock
+    )
+    published: list[Any] = []
+    graph = _graph(llm, StoreStub({}), published, router=LLMIntentRouter(llm))
+
+    primeira = await _turn(graph, "conv-roteador-2", "onde está meu pedido?")
+    segunda = await _turn(graph, "conv-roteador-3", "e o meu pedido?")
+
+    assert primeira["reply"] == llm_unavailable()
+    assert segunda["reply"] == llm_unavailable()
+    assert [h.reason for h in _handoffs(published)] == ["llm_indisponivel"] * 2
+    assert inner.calls == 1  # a segunda conversa encontra o circuito aberto
+
+
+async def test_resposta_invalida_do_roteador_continua_pedindo_esclarecimento():
+    from commerce_agents.application.agents.replies import clarification
+    from commerce_agents.infrastructure.agents.router import LLMIntentRouter
+
+    published: list[Any] = []
+    graph = _graph(
+        ScriptedLLM([]),
+        StoreStub({}),
+        published,
+        router=LLMIntentRouter(ScriptedLLM(["isto não é json {"])),
+    )
+
+    estado = await _turn(graph, "conv-roteador-4", "hmm")
+
+    assert estado["reply"] == clarification()
+    assert _handoffs(published) == []
 
 
 # ------------------------------------------------------------------- loja fora do ar

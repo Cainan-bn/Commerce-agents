@@ -1,4 +1,7 @@
-"""SDK do OpenTelemetry em memória, instalado uma vez no processo (o provider global é único)."""
+"""SDK do OpenTelemetry em memória, instalado uma vez no processo (o provider global é único).
+
+Fica na raiz de tests/ para servir aos testes unitários e de integração da mesma sessão.
+"""
 
 from typing import Any
 
