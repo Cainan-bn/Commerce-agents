@@ -184,7 +184,7 @@ async def test_miss_conta_metrica_e_loga_a_chave_sem_texto_do_cliente(
     with caplog.at_level(logging.WARNING):
         result = await recorded.RecordedLLMProvider(path).complete(messages, max_tokens=64)
 
-    assert result.content == recorded.DEMO_MISS_REPLY
+    assert recorded.DEMO_MISS_REPLY in result.content  # final do protocolo com o aviso (10-09a)
     pontos = collected(metric_reader)["llm.recorded.miss"]
     assert sum(p.value for p in pontos) == 1
     avisos = [r for r in caplog.records if r.levelno == logging.WARNING]

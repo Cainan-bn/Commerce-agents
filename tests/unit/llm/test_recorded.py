@@ -92,7 +92,11 @@ async def test_chave_ausente_nao_levanta_e_devolve_o_aviso_de_demonstracao(tmp_p
 
     result = await recorded.RecordedLLMProvider(path).complete(MESSAGES, max_tokens=999)
 
-    assert result.content == recorded.DEMO_MISS_REPLY
+    # 10-09a: o miss é uma resposta FINAL do protocolo do especialista com o aviso.
+    from commerce_agents.application.agents.protocol import FinalAnswer, parse_agent_action
+
+    action = parse_agent_action(result.content)
+    assert isinstance(action, FinalAnswer) and action.text == recorded.DEMO_MISS_REPLY
     assert result.provider == "recorded"
     assert result.cost_usd is None
 

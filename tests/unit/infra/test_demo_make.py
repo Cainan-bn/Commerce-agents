@@ -114,3 +114,29 @@ def _strip_ansi(text: str) -> str:
     import re
 
     return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+
+# ------------------------------------------------------------------ 10-09a
+
+
+def test_demo_reset_reinicia_so_a_loja_fake():
+    receita = _dry_run("demo-reset")
+
+    assert "docker-compose.prod.yml" in receita
+    assert "mock-store" in receita
+    assert "down" not in receita  # não derruba o resto da stack
+
+
+def test_demo_verify_exporta_metricas_rapido_e_espera_o_scrape():
+    receita = _dry_run("demo-verify")
+
+    assert "OTEL_METRIC_EXPORT_INTERVAL=" in receita
+    assert "--metrics-settle-s" in receita
+
+
+def test_compose_de_producao_repassa_o_intervalo_de_export_ao_app():
+    import yaml
+
+    compose = yaml.safe_load((ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8"))
+
+    assert "OTEL_METRIC_EXPORT_INTERVAL" in compose["services"]["worker"]["environment"]

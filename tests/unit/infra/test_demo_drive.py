@@ -143,3 +143,157 @@ def test_main_aceita_as_opcoes(monkeypatch: pytest.MonkeyPatch):
     assert [c["id"] for c in seen["conversations"]] == [
         c["id"] for c in driver.load_conversations(ROTEIRO)
     ]
+
+
+# ------------------------------------------------------------------ 10-09a: contador de miss
+#
+# Contrato fixado:
+# - `await read_miss_total(client, metrics_url) -> float` consulta a API do Prometheus
+#   (`/api/v1/query`, `sum(llm_recorded_miss_total)`); série ausente = 0.0 só se o Prometheus
+#   responder; Prometheus fora ou resposta de erro levanta `MetricsUnavailable`;
+# - `run(..., misses=<async () -> float>, settle_s=<s>)`: com `expect_no_miss`, lê o total antes e,
+#   depois das conversas e de esperar `settle_s` (export OTel + scrape), de novo; aumento -> != 0;
+#   `MetricsUnavailable` -> != 0;
+# - `main` aceita `--metrics-url` (padrão http://localhost:9090) e `--metrics-settle-s`.
+
+
+def _prometheus(handler: Any) -> Any:
+    import httpx
+
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+async def test_read_miss_total_soma_do_prometheus():
+    import httpx
+
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return httpx.Response(
+            200,
+            json={
+                "status": "success",
+                "data": {"resultType": "vector", "result": [{"metric": {}, "value": [1, "3"]}]},
+            },
+        )
+
+    async with _prometheus(handler) as client:
+        total = await _driver().read_miss_total(client, "http://prom.test:9090")
+
+    assert total == 3.0
+    assert "/api/v1/query" in seen[0]
+    assert "llm_recorded_miss_total" in httpx.URL(seen[0]).params["query"]
+
+
+async def test_read_miss_total_serie_ausente_e_zero():
+    import httpx
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "success", "data": {"result": []}})
+
+    async with _prometheus(handler) as client:
+        assert await _driver().read_miss_total(client, "http://prom.test:9090") == 0.0
+
+
+@pytest.mark.parametrize("falha", ["conexao", "http_500", "status_error"])
+async def test_read_miss_total_prometheus_fora_levanta(falha: str):
+    import httpx
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if falha == "conexao":
+            raise httpx.ConnectError("recusada", request=request)
+        if falha == "http_500":
+            return httpx.Response(500, text="erro")
+        return httpx.Response(200, json={"status": "error", "error": "query inválida"})
+
+    driver = _driver()
+    async with _prometheus(handler) as client:
+        with pytest.raises(driver.MetricsUnavailable):
+            await driver.read_miss_total(client, "http://prom.test:9090")
+
+
+def _misses(*values: float) -> Any:
+    queue = list(values)
+
+    async def read() -> float:
+        return queue.pop(0)
+
+    return read
+
+
+async def test_contador_que_aumenta_falha_mesmo_sem_aviso_no_texto():
+    code = await _driver().run(
+        CONVERSAS,
+        FakeTransport(),
+        timeout_s=1,
+        expect_no_miss=True,
+        misses=_misses(0.0, 1.0),
+        settle_s=0,
+    )
+
+    assert code != 0
+
+
+async def test_contador_estavel_passa():
+    code = await _driver().run(
+        CONVERSAS,
+        FakeTransport(),
+        timeout_s=1,
+        expect_no_miss=True,
+        misses=_misses(4.0, 4.0),
+        settle_s=0,
+    )
+
+    assert code == 0
+
+
+async def test_metricas_indisponiveis_com_expect_no_miss_falham():
+    driver = _driver()
+
+    async def down() -> float:
+        raise driver.MetricsUnavailable("Prometheus fora")
+
+    code = await driver.run(
+        CONVERSAS, FakeTransport(), timeout_s=1, expect_no_miss=True, misses=down, settle_s=0
+    )
+
+    assert code != 0
+
+
+def test_main_passa_o_leitor_de_metricas_com_expect_no_miss(monkeypatch: pytest.MonkeyPatch):
+    driver = _driver()
+    seen: dict[str, Any] = {}
+
+    async def fake_run(conversations: Any, transport: Any, **kw: Any) -> int:
+        seen.update(kw)
+        return 0
+
+    monkeypatch.setattr(driver, "run", fake_run)
+
+    driver.main(
+        ["--expect-no-miss", "--metrics-url", "http://prom.test:9090", "--metrics-settle-s", "30"]
+    )
+
+    assert callable(seen["misses"])
+    assert seen["settle_s"] == 30
+
+
+def test_metrics_url_padrao_e_o_prometheus_local():
+    import argparse
+
+    driver = _driver()
+    captured: dict[str, Any] = {}
+    original = argparse.ArgumentParser.parse_args
+
+    def spy(self: argparse.ArgumentParser, args: Any = None, namespace: Any = None) -> Any:
+        result = original(self, args, namespace)
+        captured.update(vars(result))
+        raise SystemExit(0)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(argparse.ArgumentParser, "parse_args", spy)
+        with pytest.raises(SystemExit):
+            driver.main([])
+
+    assert captured["metrics_url"] == "http://localhost:9090"
