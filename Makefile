@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick eval-holdout load run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
+.PHONY: help doctor setup up down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick eval-holdout eval-record eval-ci load run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
 
 SEED_OUT ?= data/seed
 
@@ -114,6 +114,17 @@ eval: ## Roda a suite de avaliacao dev completa (LABEL=nome; grava reports/eval)
 
 eval-quick: ## Roda o subset rapido de 12 cenarios para PR (LABEL=nome)
 	uv run python -m evals run --label "$(or $(LABEL),quick)" --subset quick --split dev --retry-infra 2
+
+EVAL_CASSETTE_QUICK := evals/cassettes/quick.jsonl
+
+eval-record: ## Grava o cassete de replay do subset quick com o LLM real (opencode; ADR 0016)
+	uv run python -m evals run --label record --subset quick --split dev --retry-infra 3 --record $(EVAL_CASSETTE_QUICK)
+
+eval-ci: ## Gate de CI: replay do cassete do subset quick, sem LLM nem Postgres (ADR 0016)
+	LLM_PROVIDER=replay EVAL_CASSETTE=$(EVAL_CASSETTE_QUICK) \
+		uv run python -m evals run --label ci --subset quick --split dev --retry-infra 0
+	uv run python -m evals gate --cassette $(EVAL_CASSETTE_QUICK) \
+		--report "$$(ls -t reports/eval/*-ci.json | head -n 1)"
 
 eval-holdout: ## Roda o holdout (so o Lider; exige EVAL_HOLDOUT_DIR fora do repositorio)
 	uv run python -m evals run --label "$(or $(LABEL),holdout)" --subset all --split holdout
