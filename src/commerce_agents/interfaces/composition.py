@@ -8,6 +8,7 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Protocol
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -48,6 +49,7 @@ from commerce_agents.infrastructure.persistence.database import (
     create_engine,
     create_session_factory,
 )
+from commerce_agents.infrastructure.persistence.delivery_ledger import SqlDeliveryLedger
 from commerce_agents.infrastructure.persistence.handoffs import SqlHandoffRepository
 from commerce_agents.infrastructure.persistence.idempotency import SqlIdempotencyRegistry
 from commerce_agents.infrastructure.persistence.identity import SqlIdentityResolver
@@ -64,6 +66,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_KAFKA_BOOTSTRAP = "localhost:9092"
 DEFAULT_STORE_BASE_URL = "http://localhost:8001"
+DEFAULT_PURGE_INTERVAL_S = 3600
+DEFAULT_RETENTION_DAYS = 30
 
 
 def utcnow() -> datetime:
@@ -85,6 +89,8 @@ class Settings:
     instagram_access_token: str
     web_session_secret: str
     panel_token: str
+    purge_interval_s: int = DEFAULT_PURGE_INTERVAL_S
+    retention_days: int = DEFAULT_RETENTION_DAYS
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
@@ -101,6 +107,8 @@ class Settings:
             instagram_access_token=env.get("INSTAGRAM_ACCESS_TOKEN", ""),
             web_session_secret=env.get("WEB_SESSION_SECRET", ""),
             panel_token=env.get("PANEL_TOKEN", ""),
+            purge_interval_s=int(env.get("PURGE_INTERVAL_S", DEFAULT_PURGE_INTERVAL_S)),
+            retention_days=int(env.get("RETENTION_DAYS", DEFAULT_RETENTION_DAYS)),
         )
 
 
@@ -128,6 +136,12 @@ class BusHandoffNotifier:
         await self._bus.publish(TOPIC_HANDOFF, request.conversation_id, request)
 
 
+class Purger(Protocol):
+    """Apaga registros anteriores ao corte e devolve quantos saíram."""
+
+    async def purge(self, older_than: datetime) -> int: ...
+
+
 @dataclass
 class WorkerRuntime:
     engine: AsyncEngine
@@ -137,6 +151,7 @@ class WorkerRuntime:
     handle_inbound: HandleInboundMessage
     relay: SqlOutboxRelay
     sender: ChannelRouter
+    purgers: tuple[Purger, ...]
 
     async def close(self) -> None:
         await self.bus.close()
@@ -175,10 +190,12 @@ async def build_worker(settings: Settings) -> WorkerRuntime:
 
     http = httpx.AsyncClient(base_url=settings.store_base_url)
     retriever = HybridPolicyRetriever(factory, FastEmbedEmbedder())
+    tokens = SqlConfirmationTokenStore(factory, clock=utcnow)
+    idempotency = SqlIdempotencyRegistry(factory)
     executor = ToolExecutor(
         client=http,
-        tokens=SqlConfirmationTokenStore(factory, clock=utcnow),
-        idempotency=SqlIdempotencyRegistry(factory),
+        tokens=tokens,
+        idempotency=idempotency,
         internal_handlers={"search_policies": make_search_policies_handler(retriever)},
     )
     llm = llm_from_env(os.environ)
@@ -188,7 +205,7 @@ async def build_worker(settings: Settings) -> WorkerRuntime:
             llm=llm,
             router=LLMIntentRouter(llm),
             tools=executor,
-            tokens=SqlConfirmationTokenStore(factory, clock=utcnow),
+            tokens=tokens,
             publish_event=publish_event,
             clock=utcnow,
             memory=SqlCustomerMemory(factory),
@@ -197,6 +214,7 @@ async def build_worker(settings: Settings) -> WorkerRuntime:
         checkpointer=checkpointer,
     )
     channel_http = httpx.AsyncClient(timeout=10.0)
+    deliveries = SqlDeliveryLedger(factory)
     return WorkerRuntime(
         engine=engine,
         bus=bus,
@@ -217,10 +235,14 @@ async def build_worker(settings: Settings) -> WorkerRuntime:
                     channel_http,
                     settings.whatsapp_access_token,
                     settings.whatsapp_phone_number_id,
+                    ledger=deliveries,
                 ),
-                Channel.INSTAGRAM: InstagramSender(channel_http, settings.instagram_access_token),
+                Channel.INSTAGRAM: InstagramSender(
+                    channel_http, settings.instagram_access_token, ledger=deliveries
+                ),
             }
         ),
+        purgers=(tokens, idempotency, deliveries),
     )
 
 

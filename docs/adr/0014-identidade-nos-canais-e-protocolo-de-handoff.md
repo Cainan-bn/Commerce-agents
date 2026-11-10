@@ -27,3 +27,9 @@ Três canais (WhatsApp, Instagram, web) entregam mensagens duplicadas e fora de 
 
 - Positivas: sem dual-write, sem perda de mensagem em queda do consumidor, identidade não forjável por texto.
 - Negativas: instagram sem pedidos no MVP; token estático do painel não serve para produção (ADR futuro com SSO); três processos locais (api, worker, broker).
+
+## Adendo (Fase 09, 2026-11-10): envio idempotente durável e purga periódica
+
+- A idempotência dos senders deixou de ser um conjunto em memória do processo: o port `DeliveryLedger` (Postgres, tabela `delivered_messages(message_id PK, channel, delivered_at)`, migração 0007) é consultado antes do envio e marcado só após sucesso do canal (`INSERT ... ON CONFLICT DO NOTHING`). Reinício ou réplica do worker não reenvia uma resposta já entregue; 4xx e falha final não marcam, então a mensagem pode ser reentregue depois.
+- Risco residual: uma queda entre o 2xx do canal e a marcação ainda pode duplicar um envio (janela estreita, at-least-once).
+- Modo `purge` do worker (incluso em `all`): a cada `PURGE_INTERVAL_S` (padrão 3600) apaga, com corte `agora - RETENTION_DAYS` (padrão 30), tokens de confirmação usados/expirados (um token ainda válido nunca sai), registros de idempotência e entregas. Falha numa purga é logada e não derruba as outras.

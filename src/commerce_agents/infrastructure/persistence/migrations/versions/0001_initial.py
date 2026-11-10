@@ -27,6 +27,7 @@ _LATER_TABLES = frozenset(
         "outbox",
         "handoffs",
         "handoff_messages",
+        "delivered_messages",
     }
 )
 

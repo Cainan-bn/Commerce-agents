@@ -260,6 +260,18 @@ class OutboxModel(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class DeliveredMessageModel(Base):
+    """Entrega confirmada pelo canal: idempotência durável dos senders (Fase 09)."""
+
+    __tablename__ = "delivered_messages"
+
+    message_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    channel: Mapped[str] = mapped_column(Text, nullable=False)
+    delivered_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class HandoffModel(Base):
     __tablename__ = "handoffs"
     __table_args__ = (
