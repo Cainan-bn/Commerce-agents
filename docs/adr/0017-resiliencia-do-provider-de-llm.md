@@ -56,3 +56,23 @@ Opção 2, em `infrastructure/llm/`:
 - Negativas: parâmetros do breaker precisam de calibração (começam conservadores:
   5 falhas em 60 s, aberto por 30 s); duas chaves de provider para operar o fallback; respostas
   do secundário podem diferir em qualidade (medir com o eval antes de pôr em produção).
+
+## Adendo (2026-11-10): queda do LLM no roteador
+
+O teste de caos da 09-05 mostrou que, com o provider fora e sem secundário, o roteador cai
+primeiro e devolve `ambiguous`; o grafo responde `clarification()` e o especialista nunca é
+chamado. O cliente recebe pedidos de esclarecimento em sequência e nunca chega a um humano, e a
+chamada do roteador não aparece nas métricas de LLM.
+
+Decisão: o roteador distingue as duas falhas. Resposta inválida do LLM (JSON ou schema) continua
+virando `ambiguous`. Indisponibilidade (`LLMUnavailableError`, inclusive circuito aberto) é
+propagada ao supervisor depois de chamar `on_failure`, e o supervisor responde
+`llm_unavailable()` com handoff `llm_indisponivel`, igual ao especialista. O roteador usa o
+mesmo provider instrumentado (spans e métricas) que os agentes. Isto substitui a frase "a queda
+dele já cai em `ambiguous`" da decisão acima.
+
+## Adendo (2026-11-10): contexto de trace no outbox
+
+A resposta passa pelo outbox no Postgres antes de ir ao Redpanda; o relay publicava sem contexto
+e a entrega abria um trace novo. A linha do outbox guarda o `traceparent` do turno que a
+gravou, e o relay publica com ele (span de publicação filho desse contexto). Refina o ADR 0018.
