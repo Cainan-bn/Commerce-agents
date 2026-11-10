@@ -132,8 +132,11 @@ eval-ci: ## Gate de CI: replay do cassete do subset quick, sem LLM nem Postgres 
 eval-holdout: ## Roda o holdout (so o Lider; exige EVAL_HOLDOUT_DIR fora do repositorio)
 	uv run python -m evals run --label "$(or $(LABEL),holdout)" --subset all --split holdout
 
-load: ## Roda teste de carga k6
-	@echo "[load] nao implementado nesta fase"
+load: ## Carga k6 (SCENARIO=webhook|conversa|caos|trace|all; APP_DIR=worktree; ver load/README.md)
+	@for scenario in $(if $(filter all,$(or $(SCENARIO),all)),webhook conversa caos trace,$(SCENARIO)); do \
+		echo "[load] cenario $$scenario"; \
+		load/run.sh $$scenario || exit $$?; \
+	done
 
 run-api: ## Sobe a API de canais e o painel (porta 8000; requer Postgres e Redpanda do compose)
 	@set -a; \
