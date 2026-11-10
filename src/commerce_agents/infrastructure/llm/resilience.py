@@ -14,6 +14,7 @@ from typing import Literal, Protocol
 from commerce_agents.application.dto.views import LLMMessage, LLMResult
 from commerce_agents.application.ports.llm import LLMProvider, LLMUnavailableError
 from commerce_agents.infrastructure.llm.openai_compatible import build_provider_from_env
+from commerce_agents.infrastructure.telemetry import CIRCUIT_OPENED, FALLBACK_USED
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,7 @@ class CircuitBreakerLLM:
     def _open(self, now: float) -> None:
         self._opened_at = now
         self._failures.clear()
+        CIRCUIT_OPENED.add(1, {"provider": self.name})
         logger.warning("llm: circuito aberto para %s por %.0fs", self.name, self._open_s)
 
     def _close(self) -> None:
@@ -130,6 +132,7 @@ class FallbackLLM:
                 reasons.append(f"{provider.name}: {error}")
                 continue
             if reasons:
+                FALLBACK_USED.add(1, {"provider": provider.name})
                 logger.warning("llm: respondido pelo fallback %s", provider.name)
             return _tagged(result, provider.name)
         raise LLMUnavailableError("todos os providers indisponíveis: " + "; ".join(reasons))

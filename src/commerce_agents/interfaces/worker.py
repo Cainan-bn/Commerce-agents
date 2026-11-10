@@ -21,6 +21,7 @@ from commerce_agents.domain.conversation.channel import Channel
 from commerce_agents.infrastructure.messaging.bus import consume
 from commerce_agents.infrastructure.messaging.senders import SendRejectedError
 from commerce_agents.interfaces.composition import Settings, WorkerRuntime, build_worker
+from commerce_agents.interfaces.telemetry import configure_logging, setup_telemetry
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,8 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="commerce_agents.interfaces.worker")
     parser.add_argument("mode", nargs="?", choices=MODES, default="all")
     args = parser.parse_args(argv)
-    logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
+    configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
+    setup_telemetry(os.environ)
     asyncio.run(run(args.mode))
 
 

@@ -17,6 +17,9 @@ dependencies = [
   "langgraph>=1.2.20",
   "langgraph-checkpoint-postgres>=3.2.0",
   "mcp>=1.2,<2",
+  "opentelemetry-api>=1.30",
+  "opentelemetry-exporter-otlp-proto-grpc>=1.30",
+  "opentelemetry-sdk>=1.30",
   "pgvector>=0.5.1",
   "psycopg[binary]>=3.2",
   "pydantic>=2.0",
@@ -127,6 +130,7 @@ name = "Domain independente de frameworks e I/O"
 type = "forbidden"
 source_modules = ["commerce_agents.domain"]
 forbidden_modules = [
+  "opentelemetry",
   "pydantic",
   "sqlalchemy",
   "fastapi",
@@ -140,6 +144,7 @@ name = "Application sem frameworks de infraestrutura"
 type = "forbidden"
 source_modules = ["commerce_agents.application"]
 forbidden_modules = [
+  "opentelemetry",
   "sqlalchemy",
   "fastapi",
   "langgraph",

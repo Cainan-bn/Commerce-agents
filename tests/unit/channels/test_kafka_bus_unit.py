@@ -38,7 +38,14 @@ class FakeProducer:
     async def stop(self) -> None:
         self.stopped = True
 
-    async def send_and_wait(self, topic: str, value: bytes, key: bytes) -> None:
+    async def send_and_wait(
+        self,
+        topic: str,
+        value: bytes,
+        key: bytes,
+        headers: list[tuple[str, bytes]] | None = None,
+    ) -> None:
+        # Os headers (traceparent, ADR 0018) são cobertos em tests/unit/observability.
         self.sent.append((topic, value, key))
 
 
@@ -77,7 +84,7 @@ class FakeConsumer:
 
 
 def _record(value: bytes, offset: int = 0) -> Any:
-    return SimpleNamespace(value=value, offset=offset, topic="t", partition=0)
+    return SimpleNamespace(value=value, offset=offset, topic="t", partition=0, headers=[])
 
 
 @pytest.fixture(autouse=True)

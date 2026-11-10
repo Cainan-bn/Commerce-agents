@@ -10,7 +10,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Protocol
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
@@ -62,6 +62,7 @@ from commerce_agents.application.use_cases.irreversible import (
     ConfirmIrreversibleAction,
     ProposeIrreversibleAction,
 )
+from commerce_agents.infrastructure import telemetry
 from commerce_agents.infrastructure.agents.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -174,6 +175,7 @@ def _render_result(result: StrictModel | ToolError) -> str:
 class _Nodes:
     def __init__(self, deps: GraphDeps) -> None:
         self._deps = deps
+        self._llm = telemetry.TracedLLM(deps.llm)
 
     # ------------------------------------------------------------------ entrada
     async def ingest(self, state: GraphState) -> dict[str, Any]:
@@ -216,7 +218,9 @@ class _Nodes:
         assert raw is not None
         pending = PendingAction.model_validate(raw, strict=False)
         scoped = ScopedToolInvoker(deps.tools, state["customer_id"])
-        use_case = ConfirmIrreversibleAction(scoped, deps.publish_event, clock=deps.clock)
+        use_case = ConfirmIrreversibleAction(
+            telemetry.TracedToolInvoker(scoped), deps.publish_event, clock=deps.clock
+        )
         outcome = await use_case.execute(pending, _current_text(state))
         keep = outcome.status is ConfirmationStatus.UNCLEAR
         return self._finish(
@@ -292,7 +296,7 @@ class _Nodes:
                     "reply": proposal.summary,
                     "token_budget_remaining": budget,
                 }
-            result = proposal or await scoped.invoke(
+            result = proposal or await telemetry.TracedToolInvoker(scoped).invoke(
                 allow_key,
                 action.tool,
                 action.arguments,
@@ -378,7 +382,7 @@ class _Nodes:
         attempt = messages
         for repaired in (False, True):
             try:
-                result = await self._deps.llm.complete(attempt, max_tokens=_MAX_TOKENS_PER_CALL)
+                result = await self._llm.complete(attempt, max_tokens=_MAX_TOKENS_PER_CALL)
             except Exception as error:
                 logger.warning("LLM indisponível", exc_info=True)
                 raise _LLMUnavailableError from error
@@ -415,6 +419,7 @@ class _Nodes:
 
     async def handoff(self, state: GraphState) -> dict[str, Any]:
         reason = state.get("handoff_reason") or "solicitado"
+        telemetry.record_handoff(reason)
         summary = (
             f"Cliente {state['customer_id']}. Intenção: {state.get('intent') or 'n/d'}. "
             f"Motivo: {reason}. Última mensagem: {_current_text(state)[:500]}"
@@ -469,20 +474,48 @@ def _after_finalize(state: GraphState) -> str:
     return "handoff" if state.get("handoff_reason") else END
 
 
+class Node(Protocol):
+    """Forma de nó que o `StateGraph` aceita (parâmetro nomeado `state`)."""
+
+    def __call__(self, state: GraphState) -> Awaitable[dict[str, Any]]: ...
+
+
+def _traced_node(name: str, node: Node) -> Node:
+    async def traced(state: GraphState) -> dict[str, Any]:
+        with telemetry.span(f"graph.node.{name}"):
+            return await node(state)
+
+    return traced
+
+
+def _trace_turns(graph: CompiledStateGraph[GraphState, None, GraphState, GraphState]) -> None:
+    """Span raiz `conversation.turn` em volta de cada `ainvoke`; os nós herdam o contexto."""
+    run = graph.ainvoke
+
+    async def ainvoke(input: Any, config: Any = None, **kwargs: Any) -> Any:
+        with telemetry.turn_span(input if isinstance(input, dict) else {}):
+            return await run(input, config, **kwargs)
+
+    setattr(graph, "ainvoke", ainvoke)  # noqa: B010 - substitui o método só nesta instância
+
+
 def build_graph(
     deps: GraphDeps, *, checkpointer: BaseCheckpointSaver[Any]
 ) -> CompiledStateGraph[GraphState, None, GraphState, GraphState]:
     """Compila o grafo de um turno. Estado e pendências persistem por `thread_id` no checkpoint."""
     nodes = _Nodes(deps)
     builder: StateGraph[GraphState, None, GraphState, GraphState] = StateGraph(GraphState)
-    builder.add_node("ingest", nodes.ingest)
-    builder.add_node("guard", nodes.guard)
-    builder.add_node("confirm", nodes.confirm)
-    builder.add_node("supervisor", nodes.supervisor)
-    builder.add_node("general", nodes.general)
-    builder.add_node("specialist", nodes.specialist)
-    builder.add_node("finalize", nodes.finalize)
-    builder.add_node("handoff", nodes.handoff)
+    for name, node in (
+        ("ingest", nodes.ingest),
+        ("guard", nodes.guard),
+        ("confirm", nodes.confirm),
+        ("supervisor", nodes.supervisor),
+        ("general", nodes.general),
+        ("specialist", nodes.specialist),
+        ("finalize", nodes.finalize),
+        ("handoff", nodes.handoff),
+    ):
+        builder.add_node(name, _traced_node(name, node))
     builder.add_edge(START, "ingest")
     builder.add_conditional_edges("ingest", _after_ingest, ["guard", END])
     builder.add_conditional_edges("guard", _after_guard, ["confirm", "handoff", "supervisor"])
@@ -494,4 +527,6 @@ def build_graph(
     builder.add_edge("confirm", END)
     builder.add_edge("general", END)
     builder.add_edge("handoff", END)
-    return builder.compile(checkpointer=checkpointer)
+    graph = builder.compile(checkpointer=checkpointer)
+    _trace_turns(graph)
+    return graph
