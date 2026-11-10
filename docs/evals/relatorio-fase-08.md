@@ -70,4 +70,16 @@ anterior. Nenhuma regra de prompt contém frases dos cenários (há testes anti-
 
 ## Holdout
 
-Ver a seção "Holdout" em `reports/eval/BASELINE.md` (rodado uma vez, após o fim do tuning).
+Rodado após o fim do tuning (12 cenários fora do repositório). `scenario_pass` 16,7% bruto e 33,3%
+com o vocabulário corrigido; `intent_agent` 91,7%; gate de irreversíveis, `leaks` e
+`forbidden_tools` 100%. A distância para o dev (70,4%) vem principalmente de o holdout não ter
+passado pelas correções de medição do dev; há quatro lacunas reais do agente (devolução sem
+proposta de `open_return`, insistência fora do prazo indo a humano, recusa vaga a quem se passa
+por outro cliente, política sem citar restrição relevante). Detalhes em `reports/eval/BASELINE.md`.
+Não houve tuning sobre o holdout.
+
+## Gate de CI
+
+ADR 0016: replay gravado do subset `quick` (`evals/cassettes/quick.jsonl`, 75% gravado), job
+`eval-gate` sem LLM, Postgres nem rede (cerca de 17 s). Barra regressão de gates de segurança e
+queda de `scenario_pass` abaixo do gravado. Mudança de prompt exige `make eval-record`.
