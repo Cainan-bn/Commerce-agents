@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up up-langfuse down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick eval-holdout eval-record eval-ci load run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
+.PHONY: help doctor setup up up-langfuse down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick eval-holdout eval-record eval-ci load load-caos-fallback run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
 
 SEED_OUT ?= data/seed
 
@@ -137,6 +137,9 @@ load: ## Carga k6 (SCENARIO=webhook|conversa|caos|trace|all; APP_DIR=worktree; v
 		echo "[load] cenario $$scenario"; \
 		load/run.sh $$scenario || exit $$?; \
 	done
+
+load-caos-fallback: ## Caos com LLM_FALLBACK_* = 2o stub (remedicao do ADR 0019; mesmas variaveis de make load)
+	FALLBACK=1 load/run.sh caos
 
 run-api: ## Sobe a API de canais e o painel (porta 8000; requer Postgres e Redpanda do compose)
 	@set -a; \

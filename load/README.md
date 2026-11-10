@@ -35,6 +35,14 @@ aplicação usa `LLM_PROVIDER=openai-compatible` apontado para o stub.
 
 3. O relatório da fase vai em `load/reports/<data>-fase09.md`, só com números medidos.
 
+### Remedição do caos com fallback (ADR 0019)
+
+A remedição do gargalo 1 (novas tentativas só no último provider da cadeia) é o alvo
+`make load-caos-fallback APP_DIR=<worktree>`, que equivale a `FALLBACK=1 load/run.sh caos` e aceita
+as mesmas variáveis do caos (`RATE_PER_MIN`, `DURATION`, `CHAOS_AT`, `CHAOS_FOR_S`,
+`REPLY_TIMEOUT_S`, `LLM_STUB_*`). Para comparar com a medição de 2026-11-10, use os mesmos
+parâmetros: `CHAOS_AT=90s CHAOS_FOR_S=120 REPLY_TIMEOUT_S=60`.
+
 ## Variáveis
 
 | Variável | Padrão | Uso |
