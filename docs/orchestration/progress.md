@@ -48,3 +48,9 @@
 - Métricas: 826 testes + 13 do painel; pipeline webhook -> Redpanda -> grafo -> outbox -> WebSocket verificado ponta a ponta com broker real.
 - Riscos abertos: sem provider real de LLM; envios sem idempotência durável; painel com token estático.
 - Próxima fase: 08 — evals e ajuste de prompts (precisa de provider de LLM e chave: decisão do usuário).
+
+## Fase 08 — Evals e ajuste de prompts
+- Estado: concluída na branch `fase/08-evals-e-ajuste-de-prompts`; PR aberto, aguardando CI para merge.
+- Métricas: dev `scenario_pass` 51,9% → 70,4% (54 cenários), `tool_selection` 98,1%, gates de irreversíveis e `leaks` 100%; holdout 33,3% (vocabulário corrigido, gates 100%); juiz calibrado 92,3%; gate de CI por replay (~17 s); 1004 testes unitários.
+- Riscos abertos: lacunas de pós-venda e de recusa vistas no holdout; contrato AMB; instabilidade do opencode; sem provider de produção.
+- Próxima fase: 09 — resiliência e observabilidade (circuit breaker do provider, carga k6, purga de tokens, idempotência durável dos senders).

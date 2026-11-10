@@ -19,3 +19,11 @@ class IntentRouter(Protocol):
     async def route(self, text: str) -> IntentDecision:
         """Retorna a intenção e a confiança, validadas por schema."""
         ...
+
+
+class LLMUnavailableError(Exception):
+    """Provider indisponível (429, 5xx, timeout ou rede) após esgotar as tentativas."""
+
+
+class LLMBadRequestError(Exception):
+    """Requisição recusada pelo provider (4xx exceto 429); não adianta repetir."""

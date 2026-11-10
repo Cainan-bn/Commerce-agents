@@ -221,3 +221,50 @@ async def test_pre_checagem_conta_um_passo_por_tool_call_do_llm():
     # 1 tool_call do LLM = 1 passo: o LLM recebe o erro e responde no passo seguinte
     assert len(llm.calls) == 2
     assert state["reply"] == "Não posso cancelar."
+
+
+# --------------------------------------------- H4: orientar devolução no pedido já enviado
+
+
+def _tool_result_block(prompt: str) -> str:
+    """Texto do último bloco <dados ...> do prompt (o resultado da ferramenta)."""
+    import re
+
+    return re.findall(r"<dados[^>]*>(.*?)</dados>", prompt, re.DOTALL)[-1]
+
+
+@pytest.mark.parametrize("status", ["shipped", "delivered"])
+async def test_cancel_de_pedido_enviado_entrega_ao_llm_a_orientacao_de_devolucao_e_o_rastreio(
+    status: str,
+):
+    store = StoreStub({"O000017": CUSTOMER})
+    store.status["O000017"] = status
+    llm = ScriptedLLM(
+        [_tool("cancel_order", {"order_id": "O000017"}), _final("Não dá para cancelar.")]
+    )
+    harness = Harness(llm, FakeRouter("cancel_order"), store)
+    issued = _spy_issues(harness)
+
+    state = await harness.turn("quero cancelar o pedido O000017")
+
+    resultado = _tool_result_block(" ".join(m.content for m in llm.calls[1]))
+    assert issued == []
+    assert state["pending_action"] is None
+    assert "não pode mais ser cancelado" in resultado
+    assert "devolução" in resultado
+    assert "TH100000001BR" in resultado
+
+
+async def test_cancel_de_pedido_ja_cancelado_nao_entrega_orientacao_de_devolucao():
+    store = StoreStub({"O000017": CUSTOMER})
+    store.status["O000017"] = "cancelled"
+    llm = ScriptedLLM(
+        [_tool("cancel_order", {"order_id": "O000017"}), _final("Já está cancelado.")]
+    )
+    harness = Harness(llm, FakeRouter("cancel_order"), store)
+
+    await harness.turn("quero cancelar o pedido O000017")
+
+    resultado = _tool_result_block(" ".join(m.content for m in llm.calls[1]))
+    assert "not_cancelable" in resultado
+    assert "devolução" not in resultado

@@ -120,6 +120,8 @@ def _order_view(body: Mapping[str, Any]) -> OrderView:
             "created_at": body["created_at"],
             "delivered_at": body.get("delivered_at"),
             "total_cents": body["total_cents"],
+            # Só SKU e quantidade: o preço unitário não é necessário ao agente.
+            "items": [{"sku": item["sku"], "qty": item["qty"]} for item in body.get("items", [])],
         },
     )
 

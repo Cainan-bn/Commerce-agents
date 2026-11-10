@@ -16,6 +16,7 @@ from commerce_agents.application.dto.base import StrictModel
 from commerce_agents.application.dto.channels import TOPIC_HANDOFF, TOPIC_OUTBOUND
 from commerce_agents.application.dto.events import HandoffRequested
 from commerce_agents.application.dto.views import LLMMessage, LLMResult
+from commerce_agents.application.ports.llm import LLMProvider
 from commerce_agents.application.use_cases.handle_inbound import HandleInboundMessage
 from commerce_agents.application.use_cases.request_handoff import (
     ClaimHandoff,
@@ -33,6 +34,7 @@ from commerce_agents.infrastructure.agents.handlers import make_search_policies_
 from commerce_agents.infrastructure.agents.memory import SqlCustomerMemory
 from commerce_agents.infrastructure.agents.router import LLMIntentRouter
 from commerce_agents.infrastructure.agents.service import ConversationService
+from commerce_agents.infrastructure.llm.openai_compatible import build_provider_from_env
 from commerce_agents.infrastructure.mcp.executor import ToolExecutor
 from commerce_agents.infrastructure.messaging.bus import KafkaEventBus, consume
 from commerce_agents.infrastructure.messaging.hub import PanelHub
@@ -109,6 +111,13 @@ class UnconfiguredLLM:
         raise RuntimeError("LLM não configurado")
 
 
+def llm_from_env(env: Mapping[str, str]) -> LLMProvider:
+    """Provider de `LLM_*`; sem `LLM_MODEL`, o placeholder cuja falha o grafo trata."""
+    if not env.get("LLM_MODEL"):
+        return UnconfiguredLLM()
+    return build_provider_from_env(env)
+
+
 class BusHandoffNotifier:
     """Publica o handoff no broker; o processo da API o entrega ao painel por WebSocket."""
 
@@ -172,7 +181,7 @@ async def build_worker(settings: Settings) -> WorkerRuntime:
         idempotency=SqlIdempotencyRegistry(factory),
         internal_handlers={"search_policies": make_search_policies_handler(retriever)},
     )
-    llm = UnconfiguredLLM()
+    llm = llm_from_env(os.environ)
     checkpointer = create_postgres_checkpointer(sync_url_from_env().replace("+psycopg", ""))
     graph = build_graph(
         GraphDeps(

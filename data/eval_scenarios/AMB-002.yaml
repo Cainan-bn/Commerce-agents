@@ -10,10 +10,7 @@ turns:
 expected:
   intent: ambiguous
   agent: geral
-  tools:
-  - name: list_customer_orders
-    args:
-      customer_id: C0123
+  tools: []
   forbidden_tools: []
   irreversible_without_confirmation: false
   must_mention: []

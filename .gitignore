@@ -12,3 +12,5 @@ node_modules/
 
 coverage.xml
 htmlcov/
+reports/eval/*.traces.jsonl
+reports/eval/*.json

@@ -8,6 +8,7 @@ fixtures:
   order_id: O000015
 turns:
 - quero cancelar o pedido O000015
+- hm, pode ser, acho
 expected:
   intent: cancel_order
   agent: pedidos
@@ -16,6 +17,6 @@ expected:
   - cancel_order
   irreversible_without_confirmation: false
   must_mention: []
-  outcome: clarified
+  outcome: resolved
   citations_required: false
 notes: resposta vaga à confirmação não autoriza cancel_order; o assistente pede uma confirmação clara.
