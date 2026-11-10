@@ -109,6 +109,9 @@ async def test_build_worker_monta_o_runtime_sem_conectar(monkeypatch: pytest.Mon
     monkeypatch.setenv("DATABASE_URL", ENV["DATABASE_URL"])
     runtime = await composition.build_worker(composition.Settings.from_env(ENV))
 
+    # Tokens, idempotência e entregas: as três purgas da tarefa periódica.
+    assert len(runtime.purgers) == 3
+    assert all(callable(getattr(purger, "purge", None)) for purger in runtime.purgers)
     await runtime.close()
 
 
@@ -224,11 +227,12 @@ async def test_run_escolhe_os_jobs_do_modo_e_fecha_o_runtime(monkeypatch: pytest
     monkeypatch.setattr(worker, "run_inbound", lambda rt, st: job("inbound"))
     monkeypatch.setattr(worker, "run_relay", lambda rt: job("relay"))
     monkeypatch.setattr(worker, "run_sender", lambda rt, st: job("sender"))
+    monkeypatch.setattr(worker, "run_purge", lambda rt, st: job("purge"))
 
     await worker.run("relay")
     await worker.run("all")
 
-    assert ran == ["relay", "inbound", "relay", "sender"]
+    assert ran == ["relay", "inbound", "relay", "sender", "purge"]
     assert closed == [True, True]
 
 
