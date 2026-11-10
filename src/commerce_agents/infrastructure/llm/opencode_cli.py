@@ -127,6 +127,7 @@ class OpenCodeCliProvider:
             model=self.model,
             input_tokens=parsed.input_tokens,
             output_tokens=parsed.output_tokens,
+            cost_usd=parsed.cost,
         )
 
 

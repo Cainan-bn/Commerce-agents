@@ -18,6 +18,7 @@ from commerce_agents.application.ports.llm import (
     LLMProvider,
     LLMUnavailableError,
 )
+from commerce_agents.infrastructure.llm.pricing import PriceTable, estimate_cost_usd, load_pricing
 
 __all__ = [
     "LLMBadRequestError",
@@ -52,6 +53,7 @@ class OpenAICompatibleProvider:
         max_retries: int = 3,
         client: httpx.AsyncClient | None = None,
         sleep: Sleep = asyncio.sleep,
+        pricing: PriceTable | None = None,
     ) -> None:
         if not api_key:
             raise ValueError("LLM_API_KEY é obrigatório para o provider openai-compatible")
@@ -63,6 +65,7 @@ class OpenAICompatibleProvider:
         self._max_retries = max_retries
         self._client = client or httpx.AsyncClient(timeout=timeout)
         self._sleep = sleep
+        self._pricing = load_pricing() if pricing is None else pricing
 
     def __repr__(self) -> str:
         return f"OpenAICompatibleProvider(url={self._url!r}, model={self.model!r})"
@@ -109,11 +112,15 @@ class OpenAICompatibleProvider:
             body = response.json()
             content = body["choices"][0]["message"]["content"]
             usage = body.get("usage") or {}
+            model = str(body.get("model") or self.model)
+            input_tokens = int(usage.get("prompt_tokens", 0))
+            output_tokens = int(usage.get("completion_tokens", 0))
             return LLMResult(
                 content=str(content),
-                model=str(body.get("model") or self.model),
-                input_tokens=int(usage.get("prompt_tokens", 0)),
-                output_tokens=int(usage.get("completion_tokens", 0)),
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=estimate_cost_usd(model, input_tokens, output_tokens, self._pricing),
             )
         except (ValueError, KeyError, IndexError, TypeError):
             return None

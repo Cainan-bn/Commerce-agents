@@ -51,3 +51,9 @@ Opção 1.
 - Negativas: mais serviços no compose (Prometheus, Grafana); propagação de contexto pelo broker
   precisa de testes; risco de vazar dados pessoais se a captura de conteúdo for ligada fora de
   desenvolvimento.
+
+## Adendo (Fase 09, 2026-11-10): custo por chamada
+
+- O custo vem de `LLMResult.cost_usd` (`None` = desconhecido, nunca um 0 inventado): o `OpenCodeCliProvider` usa o `step_finish` da própria chamada e o `OpenAICompatibleProvider` a tabela de preços, que mora em `infrastructure/llm/pricing.py` + `pricing.yaml` (`evals.pricing` só reexporta). Breaker e fallback preservam custo e provider.
+- Telemetria: `gen_ai.usage.cost_usd` no span `llm.complete` e contador `llm.cost.usd{provider, model}` quando o custo é conhecido; `conversation.turn.cost_usd` no span raiz e histograma `conversation.turn.cost{channel}` só se todas as chamadas do turno tiverem custo. Nenhuma métrica de custo leva `conversation_id`.
+- Limite: as chamadas do roteador de intenção não passam pelo `TracedLLM` e ficam fora do custo do turno.

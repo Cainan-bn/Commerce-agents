@@ -45,6 +45,12 @@ LLM_CALLS = _meter.create_counter(
 )
 LLM_DURATION = _meter.create_histogram("llm.duration", unit="s", description="Latência do LLM")
 LLM_TOKENS = _meter.create_counter("llm.tokens", description="Tokens por provider e direção")
+LLM_COST = _meter.create_counter(
+    "llm.cost.usd", unit="USD", description="Custo conhecido das chamadas por provider e modelo"
+)
+TURN_COST = _meter.create_histogram(
+    "conversation.turn.cost", unit="USD", description="Custo do LLM por turno de custo conhecido"
+)
 TOOL_DURATION = _meter.create_histogram(
     "tool.duration", unit="s", description="Latência das ferramentas por nome e resultado"
 )
@@ -73,6 +79,10 @@ _UNKNOWN = "desconhecido"
 
 # Identificadores do turno corrente: vão em todo span e nos logs.
 _turn: ContextVar[Mapping[str, str] | None] = ContextVar("telemetry_turn", default=None)
+# Custo de cada chamada de LLM do turno corrente (`None` = desconhecido).
+_turn_costs: ContextVar[list[float | None] | None] = ContextVar(
+    "telemetry_turn_costs", default=None
+)
 
 
 def capture_content() -> bool:
@@ -107,13 +117,28 @@ def turn_span(state: Mapping[str, Any]) -> Iterator[Span]:
         "message_id": str(state.get("message_id", "")),
     }
     token = _turn.set(ids)
+    costs: list[float | None] = []
+    costs_token = _turn_costs.set(costs)
     started = time.monotonic()
     try:
         with span("conversation.turn") as root:
-            yield root
+            try:
+                yield root
+            finally:
+                _record_turn_cost(root, costs, ids["channel"])
     finally:
         TURN_DURATION.record(time.monotonic() - started, {"channel": ids["channel"]})
+        _turn_costs.reset(costs_token)
         _turn.reset(token)
+
+
+def _record_turn_cost(root: Span, costs: Sequence[float | None], channel: str) -> None:
+    """Soma do turno só quando todas as chamadas têm custo conhecido (sem chamadas, nada)."""
+    if not costs or any(cost is None for cost in costs):
+        return
+    total = sum(cost or 0.0 for cost in costs)
+    root.set_attribute("conversation.turn.cost_usd", total)
+    TURN_COST.record(total, {"channel": channel})
 
 
 def record_handoff(reason: str) -> None:
@@ -170,13 +195,20 @@ class TracedLLM:
                     "gen_ai.usage.output_tokens": result.output_tokens,
                 }
             )
+            if result.cost_usd is not None:
+                current.set_attribute("gen_ai.usage.cost_usd", result.cost_usd)
             if capture_content():
                 current.add_event("gen_ai.completion", {"gen_ai.completion": result.content})
+        costs = _turn_costs.get()
+        if costs is not None:
+            costs.append(result.cost_usd)
         attrs = {"provider": provider}
         LLM_CALLS.add(1, {**attrs, "outcome": "ok"})
         LLM_DURATION.record(time.monotonic() - started, attrs)
         LLM_TOKENS.add(result.input_tokens, {**attrs, "direction": "input"})
         LLM_TOKENS.add(result.output_tokens, {**attrs, "direction": "output"})
+        if result.cost_usd is not None:
+            LLM_COST.add(result.cost_usd, {**attrs, "model": result.model})
         return result
 
 

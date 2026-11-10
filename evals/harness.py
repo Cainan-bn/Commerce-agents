@@ -34,7 +34,6 @@ from commerce_agents.application.ports.tools import ToolInvoker
 from commerce_agents.domain.conversation.channel import Channel
 from commerce_agents.infrastructure.agents.graph import GraphDeps, build_graph
 from commerce_agents.infrastructure.agents.service import ConversationService
-from evals.pricing import estimate_cost_usd, load_pricing
 from evals.replay import CassetteMissError, capture_misses
 from evals.trace import LLMCallRecord, ToolCallRecord, Trace, TurnRecord
 
@@ -135,6 +134,7 @@ class _Recorder:
                 input_tokens=result.input_tokens,
                 output_tokens=result.output_tokens,
                 latency_ms=latency_ms,
+                cost_usd=result.cost_usd,
             )
         )
         try:
@@ -269,15 +269,9 @@ def _publisher(deps: EvalDeps, recorder: _Recorder) -> Publish:
     return publish
 
 
-def _cost_usd(deps: EvalDeps, recorder: _Recorder, before: float | None) -> float | None:
-    total = getattr(deps.llm, "total_cost_usd", None)
-    if isinstance(total, float) and before is not None:
-        return total - before
-    table = load_pricing()
-    costs = [
-        estimate_cost_usd(c.model, c.input_tokens, c.output_tokens, table)
-        for c in recorder.llm_calls
-    ]
+def _cost_usd(recorder: _Recorder) -> float | None:
+    """Soma o `LLMResult.cost_usd` das chamadas; uma só desconhecida torna o total desconhecido."""
+    costs = [c.cost_usd for c in recorder.llm_calls]
     return None if not costs or any(c is None for c in costs) else sum(c or 0.0 for c in costs)
 
 
@@ -332,7 +326,6 @@ async def _run_turns(scenario: EvalScenario, deps: EvalDeps) -> Trace:
     config: Any = {"configurable": {"thread_id": conversation_id}}
     expected = scenario.expected
     confirmable = {t.name for t in expected.tools} & IRREVERSIBLE_TOOLS
-    cost_before = getattr(deps.llm, "total_cost_usd", None)
 
     trace = Trace(scenario_id=scenario.id, customer_identified=bool(customer_id))
     queue = deque(scenario.turns)
@@ -389,7 +382,7 @@ async def _run_turns(scenario: EvalScenario, deps: EvalDeps) -> Trace:
     trace.handoff_events = recorder.handoff_events
     restore_router()
     trace.infra_error = recorder.infra_error
-    trace.cost_usd = _cost_usd(deps, recorder, cost_before)
+    trace.cost_usd = _cost_usd(recorder)
     return trace
 
 

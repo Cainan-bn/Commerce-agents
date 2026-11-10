@@ -133,11 +133,6 @@ class RecordingProvider:
     def model(self) -> str:
         return str(getattr(self._inner, "model", ""))
 
-    @property
-    def total_cost_usd(self) -> float | None:
-        total = getattr(self._inner, "total_cost_usd", None)
-        return total if isinstance(total, float) else None
-
     async def complete(self, messages: list[LLMMessage], *, max_tokens: int) -> LLMResult:
         result = await self._inner.complete(messages, max_tokens=max_tokens)
         self._sink(
