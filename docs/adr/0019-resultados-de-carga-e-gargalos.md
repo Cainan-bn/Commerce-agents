@@ -71,3 +71,11 @@ chave, e réplicas de worker e de API).
   continuam valendo a pena quando não há alternativa); o custo por conversa vem do eval, não de
   tráfego real, e depende do preço informado pelo provider; a medição foi feita numa máquina
   pequena, com o gerador de carga dividindo CPU com a aplicação.
+
+## Adendo (2026-11-10): remedição após o card 09-08
+
+Caos com secundário, mesmos parâmetros, código `32f256b` (seção 6 de
+`load/reports/20261110-fase09.md`): p95 30,85 s → 7,32 s; p99 37,11 s → 10,08 s; máximo
+38,56 s → 11,03 s; circuito do primário abre 41,4 s → 7,3 s após a queda; requisições ao primário
+caído 28 → 8; handoffs, mensagens sem resposta e respostas 5xx continuam em 0. Durante a queda o
+p95 ainda passa de 4 s porque o worker processa uma mensagem por vez (gargalo 2, Fase 10).
