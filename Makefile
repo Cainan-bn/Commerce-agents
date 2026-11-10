@@ -144,7 +144,7 @@ load: ## Carga k6 (SCENARIO=webhook|conversa|caos|trace|all; APP_DIR=worktree; v
 load-caos-fallback: ## Caos com LLM_FALLBACK_* = 2o stub (remedicao do ADR 0019; mesmas variaveis de make load)
 	FALLBACK=1 load/run.sh caos
 
-demo-record: ## Grava o cassete da demo pelo caminho real (opencode no host; so o autor; ADR 0020)
+demo-record: ## Grava o cassete da demo pelo caminho real (loja fake, API e worker no host com opencode; ADR 0020)
 	docker compose up -d postgres redpanda otel-collector jaeger
 	$(MAKE) --no-print-directory seed-db ingest-policies
 	@set -a; if [ -f .env ]; then . ./.env; fi; set +a; \
@@ -152,9 +152,10 @@ demo-record: ## Grava o cassete da demo pelo caminho real (opencode no host; so 
 	rm -f $(DEMO_CASSETTE); \
 	export DEMO_MODE=true LLM_PROVIDER=opencode-cli LLM_RECORD_TO=$(DEMO_CASSETTE) \
 		WEB_SESSION_SECRET=$${WEB_SESSION_SECRET:-demo-record-local}; \
+	uv run uvicorn mock_store.main:app --port 8001 & mock=$$!; \
 	uv run uvicorn commerce_agents.interfaces.main:app --port 8000 & api=$$!; \
 	uv run python -m commerce_agents.interfaces.worker all & worker=$$!; \
-	trap 'kill $$api $$worker 2> /dev/null || true' EXIT; \
+	trap 'kill $$api $$worker $$mock 2> /dev/null || true' EXIT; \
 	for i in $$(seq 1 60); do curl -sf $(DEMO_API_URL)/health > /dev/null && break; sleep 1; done; \
 	uv run python scripts/demo_drive.py --api-url $(DEMO_API_URL) --timeout 300
 
