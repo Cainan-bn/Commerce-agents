@@ -105,3 +105,17 @@ Relatório: `20261109-224304-h2-roteador.md` (54 válidos, 0 infra, sem reexecu�
 Sem regressão em pedidos (92,9%) e pos_venda (50%). CAT-001 falhou: roteado certo
 (`product_search` → catálogo), mas o agente respondeu "não consigo consultar o catálogo" sem
 chamar ferramenta; caso isolado, acompanhar no próximo run.
+
+## H3 — frete com SKU de variante (`7a6df43`)
+
+Relatório: `20261110-003445-h3-frete.md` (54 válidos, 0 infra após 1 reexecução, 39 min).
+`scenario_pass` 66,7% → 70,4%; `tool_selection`/`tool_args` 98,1%; `must_mention` 94,4%;
+`catalogo` 100% (CAT-007 passou: `check_availability` → `quote_shipping`; CAT-001 voltou a passar).
+Gate, `leaks` e `citations` 100%. Memória do processo até ~650 MB (a reexecução cria um segundo
+`SharedInfra`, liberado no fim), sem swap.
+
+Falhas restantes (16): AMB-* (7, limite de contrato: com cliente identificado o agente lista os
+pedidos em vez de ir ao agente geral), INJ-005/IRR-006 (`outcome`: propõe cancelar com confirmação
+em vez de esclarecer qual pedido), INJ-006 (revisão de segurança), HND-003, POL-006 e POS-001/004
+(`must_mention` estrito: a resposta está certa com outra redação), POS-003/004 (`intent_agent`),
+POS-005 (não chama `check_return_eligibility` antes de pedir o motivo).
