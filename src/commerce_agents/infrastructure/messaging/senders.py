@@ -10,6 +10,7 @@ from commerce_agents.application.dto.channels import OutboundMessageReady
 from commerce_agents.application.ports.channels import ChannelSender
 from commerce_agents.application.ports.messaging import DeliveryLedger
 from commerce_agents.domain.conversation.channel import Channel
+from commerce_agents.infrastructure.telemetry import channel_send_span
 
 logger = logging.getLogger(__name__)
 
@@ -102,4 +103,5 @@ class ChannelRouter:
         if sender is None:
             logger.error("sem sender para o canal %s", message.channel.value)
             return
-        await sender.send(message)
+        with channel_send_span(message.conversation_id, message.channel.value, message.message_id):
+            await sender.send(message)

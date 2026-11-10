@@ -258,6 +258,8 @@ class OutboxModel(Base):
     inbound_message_id: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Contexto W3C do turno que gravou a linha; o relay publica com ele (ADR 0017/0018).
+    traceparent: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class DeliveredMessageModel(Base):

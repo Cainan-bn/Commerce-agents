@@ -16,6 +16,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
+from opentelemetry import context as otel_context
 from opentelemetry import metrics, trace
 from opentelemetry.context import Context
 from opentelemetry.trace import Span, SpanKind, Status, StatusCode
@@ -267,6 +268,40 @@ def inject_headers() -> list[tuple[str, bytes]]:
     carrier: dict[str, str] = {}
     _propagator.inject(carrier)
     return [(key, value.encode()) for key, value in carrier.items()]
+
+
+def current_traceparent() -> str | None:
+    """`traceparent` W3C do contexto corrente (gravado no outbox); `None` sem span ativo."""
+    carrier: dict[str, str] = {}
+    _propagator.inject(carrier)
+    return carrier.get("traceparent")
+
+
+@contextmanager
+def outbox_publish_span(traceparent: str | None) -> Iterator[None]:
+    """Contexto da publicação de uma linha do outbox: span `outbox.publish` filho do turno que a
+    gravou; sem `traceparent`, contexto vazio (nunca o do laço do relay)."""
+    if traceparent is None:
+        token = otel_context.attach(Context())
+        try:
+            yield
+        finally:
+            otel_context.detach(token)
+        return
+    parent = _propagator.extract({"traceparent": traceparent})
+    with _tracer.start_as_current_span("outbox.publish", context=parent, kind=SpanKind.PRODUCER):
+        yield
+
+
+@contextmanager
+def channel_send_span(conversation_id: str, channel: str, message_id: str) -> Iterator[Span]:
+    """Span `channel.send` da entrega ao cliente: só identificadores, nunca o texto."""
+    with span(
+        "channel.send",
+        {"conversation_id": conversation_id, "channel": channel, "message_id": message_id},
+        kind=SpanKind.CLIENT,
+    ) as current:
+        yield current
 
 
 @contextmanager

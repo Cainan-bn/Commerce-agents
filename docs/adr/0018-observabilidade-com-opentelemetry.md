@@ -56,4 +56,5 @@ Opção 1.
 
 - O custo vem de `LLMResult.cost_usd` (`None` = desconhecido, nunca um 0 inventado): o `OpenCodeCliProvider` usa o `step_finish` da própria chamada e o `OpenAICompatibleProvider` a tabela de preços, que mora em `infrastructure/llm/pricing.py` + `pricing.yaml` (`evals.pricing` só reexporta). Breaker e fallback preservam custo e provider.
 - Telemetria: `gen_ai.usage.cost_usd` no span `llm.complete` e contador `llm.cost.usd{provider, model}` quando o custo é conhecido; `conversation.turn.cost_usd` no span raiz e histograma `conversation.turn.cost{channel}` só se todas as chamadas do turno tiverem custo. Nenhuma métrica de custo leva `conversation_id`.
-- Limite: as chamadas do roteador de intenção não passam pelo `TracedLLM` e ficam fora do custo do turno.
+- O roteador de intenção usa o mesmo provider instrumentado (`composition.build_router`), então suas chamadas entram nos spans, nas métricas e no custo do turno.
+- Trace pelo outbox: a linha guarda o `traceparent` do turno; o relay publica num span `outbox.publish` filho dele, e a entrega abre `channel.send` (`ChannelRouter` e `PanelHub`, só identificadores), fechando turno → outbox → broker → envio num único trace.

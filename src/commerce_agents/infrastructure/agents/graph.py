@@ -56,7 +56,7 @@ from commerce_agents.application.dto.tools import (
 )
 from commerce_agents.application.dto.views import LLMMessage
 from commerce_agents.application.ports.confirmation import ConfirmationTokenStore, CustomerMemory
-from commerce_agents.application.ports.llm import IntentRouter, LLMProvider
+from commerce_agents.application.ports.llm import IntentRouter, LLMProvider, LLMUnavailableError
 from commerce_agents.application.ports.tools import ToolInvoker
 from commerce_agents.application.use_cases.irreversible import (
     ConfirmIrreversibleAction,
@@ -236,6 +236,16 @@ class _Nodes:
             decision = await self._deps.router.route(_current_text(state))
             intent = Intent(decision.intent)
             confidence = decision.confidence
+        except LLMUnavailableError:
+            # Sem LLM não há especialista que responda: vai a humano (adendo do ADR 0017).
+            return {
+                "intent": Intent.AMBIGUOUS.value,
+                "intent_confidence": 0.0,
+                "active_agent": "humano",
+                "pending_action": None,
+                "reply": llm_unavailable(),
+                "handoff_reason": "llm_indisponivel",
+            }
         except Exception:
             logger.warning("supervisor: falha no roteador; usando ambiguous", exc_info=True)
             intent, confidence = Intent.AMBIGUOUS, 0.0

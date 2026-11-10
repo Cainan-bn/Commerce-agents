@@ -60,6 +60,7 @@ from commerce_agents.infrastructure.persistence.repositories import SqlConversat
 from commerce_agents.infrastructure.persistence.token_store import SqlConfirmationTokenStore
 from commerce_agents.infrastructure.rag.embedder import FastEmbedEmbedder
 from commerce_agents.infrastructure.rag.retriever import HybridPolicyRetriever
+from commerce_agents.infrastructure.telemetry import TracedLLM
 from commerce_agents.interfaces.api import ApiDeps
 
 logger = logging.getLogger(__name__)
@@ -124,6 +125,11 @@ def llm_from_env(env: Mapping[str, str]) -> LLMProvider:
     if not env.get("LLM_MODEL"):
         return UnconfiguredLLM()
     return build_resilient_llm(env)
+
+
+def build_router(llm: LLMProvider) -> LLMIntentRouter:
+    """Roteador sobre o provider instrumentado: spans, métricas e custo como os agentes."""
+    return LLMIntentRouter(TracedLLM(llm))
 
 
 class BusHandoffNotifier:
@@ -203,7 +209,7 @@ async def build_worker(settings: Settings) -> WorkerRuntime:
     graph = build_graph(
         GraphDeps(
             llm=llm,
-            router=LLMIntentRouter(llm),
+            router=build_router(llm),
             tools=executor,
             tokens=tokens,
             publish_event=publish_event,
