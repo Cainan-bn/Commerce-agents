@@ -80,8 +80,9 @@ def _tracer() -> Any:
 
 
 def _traceparent(span: Any) -> str:
+    # Flags do próprio span: o SDK 1.45 marca o bit random do W3C nível 2 (03) em spans raiz.
     context = span.get_span_context()
-    return f"00-{context.trace_id:032x}-{context.span_id:016x}-01"
+    return f"00-{context.trace_id:032x}-{context.span_id:016x}-{context.trace_flags:02x}"
 
 
 async def _stored_traceparents(engine: Any) -> list[str | None]:
@@ -161,7 +162,8 @@ async def test_relay_publica_cada_linha_com_o_contexto_dela(channels_db, spans: 
         assert publish.context.trace_id == origin.trace_id
         assert publish.parent is not None and publish.parent.span_id == origin.span_id
         assert headers["traceparent"] == (
-            f"00-{origin.trace_id:032x}-{publish.context.span_id:016x}-01"
+            f"00-{origin.trace_id:032x}-{publish.context.span_id:016x}"
+            f"-{publish.context.trace_flags:02x}"
         )
         assert publish.context.trace_id != loop.get_span_context().trace_id
 
