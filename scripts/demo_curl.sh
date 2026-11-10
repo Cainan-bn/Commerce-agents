@@ -11,6 +11,7 @@
 #   WEB_SESSION_SECRET  só sem DEMO_MODE: assina a sessão localmente (openssl)
 #   REPLY_TIMEOUT_S     espera máxima pela resposta (padrão 30)
 #   TYPE_DELAY          segundos por caractere ao "digitar" os comandos (padrão 0)
+#   DEMO_NOTE           linha de aviso sob o título (ex.: que as respostas são gravadas)
 # Requer: curl com WebSocket (8.x), jq, stdbuf; openssl só para assinar localmente.
 set -euo pipefail
 
@@ -62,6 +63,7 @@ trap cleanup EXIT
 
 printf '%sCommerceAgents · atendimento de e-commerce com agentes de IA%s\n' "$bold" "$reset"
 printf '%scanal web: webhook -> Redpanda -> worker (LangGraph) -> outbox -> WebSocket%s\n' "$dim" "$reset"
+[ -n "${DEMO_NOTE:-}" ] && printf '%s%s%s\n' "$yellow" "$DEMO_NOTE" "$reset"
 
 step "1. API no ar"
 show "curl -s $API_URL/health"
@@ -116,5 +118,6 @@ if [ -z "$reply" ]; then
   exit 1
 fi
 elapsed=$(echo "$(date +%s.%N) - $started" | bc)
-printf '%s\n' "$reply" | jq -C '{message_id, source, text}'
+printf '%s\n' "$reply" | jq -C '{message_id, source}'
+printf '\n%s\n' "$(jq -r .text <<< "$reply")" | fold -s -w "${COLUMNS:-100}"
 printf '\n%s✔ %s respondeu em %.1f s%s\n' "$green$bold" "$(jq -r .source <<< "$reply")" "$elapsed" "$reset"
