@@ -308,7 +308,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (provider) (increase(llm_circuit_opened_total[5m]))",
+          "expr": "sum by (provider) (increase(llm_circuit_opened_total[5m])) or sum by (provider) (llm_circuit_opened_total unless llm_circuit_opened_total offset 5m)",
           "legendFormat": "{{provider}}",
           "refId": "A"
         }
@@ -354,7 +354,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (provider) (increase(llm_fallback_used_total[5m]))",
+          "expr": "sum by (provider) (increase(llm_fallback_used_total[5m])) or sum by (provider) (llm_fallback_used_total unless llm_fallback_used_total offset 5m)",
           "legendFormat": "{{provider}}",
           "refId": "A"
         }

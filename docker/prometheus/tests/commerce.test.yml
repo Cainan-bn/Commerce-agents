@@ -65,6 +65,28 @@ tests:
         alertname: CircuitoLLMAberto
         exp_alerts: []
 
+  # Primeira abertura do processo: a série nasce em 1 (sem amostra 0 antes). Alerta imediato.
+  - interval: 1m
+    input_series:
+      - series: 'llm_circuit_opened_total{provider="primario"}'
+        values: "_ _ _ 1 1 1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: CircuitoLLMAberto
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: CircuitoLLMAberto
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              provider: primario
+            exp_annotations:
+              summary: "Circuito do LLM abriu (primario)"
+              description: "O circuit breaker do provider primario abriu nos últimos 5 min."
+      - eval_time: 12m
+        alertname: CircuitoLLMAberto
+        exp_alerts: []
+
   # 30% de erro sustentado dispara; 10% não.
   - interval: 1m
     input_series:

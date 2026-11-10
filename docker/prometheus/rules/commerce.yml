@@ -14,8 +14,13 @@ groups:
           summary: "p95 do turno acima de 4 s há 5 min"
           description: "p95 atual: {{ $value | humanizeDuration }} (meta: 4 s)."
 
+      # A série do contador nasce já em 1 na primeira abertura do processo, e increase() não vê
+      # esse salto (sem amostra anterior): o `unless ... offset` cobre a série nova.
       - alert: CircuitoLLMAberto
-        expr: sum by (provider) (increase(llm_circuit_opened_total[5m])) > 0
+        expr: >-
+          sum by (provider) (increase(llm_circuit_opened_total[5m])) > 0
+          or sum by (provider) (llm_circuit_opened_total unless llm_circuit_opened_total offset 5m)
+          > 0
         labels:
           severity: critical
         annotations:

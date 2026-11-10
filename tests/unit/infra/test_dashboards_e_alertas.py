@@ -75,6 +75,7 @@ def _identifiers(expr: str) -> set[str]:
     """Identificadores da consulta fora de seletores, janelas, `by (...)` e literais."""
     stripped = re.sub(r"\{[^}]*\}", " ", expr)
     stripped = re.sub(r"\[[^\]]*\]", " ", stripped)
+    stripped = re.sub(r"\boffset\s+\d+[smhdwy]+", " ", stripped)
     stripped = re.sub(r"\b(by|without|on|ignoring)\s*\([^)]*\)", " ", stripped)
     stripped = re.sub(r'"[^"]*"', " ", stripped)
     return set(re.findall(r"[a-zA-Z_:][a-zA-Z0-9_:]*", stripped)) - PROMQL_WORDS
