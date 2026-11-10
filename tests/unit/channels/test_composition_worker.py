@@ -262,4 +262,5 @@ def test_llm_from_env_com_modelo_usa_o_provider_configurado():
         {"LLM_PROVIDER": "openai-compatible", "LLM_MODEL": "m", "LLM_API_KEY": api_key}
     )
 
-    assert isinstance(provider, OpenAICompatibleProvider)
+    # ADR 0017: o provider configurado vem envolvido no circuit breaker.
+    assert isinstance(provider.inner, OpenAICompatibleProvider)  # type: ignore[attr-defined]

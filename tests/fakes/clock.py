@@ -16,3 +16,16 @@ class FakeClock:
 
     def advance(self, seconds: float) -> None:
         self.now += timedelta(seconds=seconds)
+
+
+class FakeMonotonic:
+    """Relógio monotônico em segundos (como `time.monotonic`), avançado à mão pelo teste."""
+
+    def __init__(self, start: float = 1000.0) -> None:
+        self.now = start
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
