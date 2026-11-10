@@ -27,7 +27,8 @@ x-app: &app
     LLM_MODEL:
     LLM_BASE_URL:
     LLM_API_KEY:
-    LLM_CASSETTE:
+    # Cassete da demonstração (ADR 0020), lido só com LLM_PROVIDER=recorded.
+    LLM_CASSETTE: ${LLM_CASSETTE:-/app/data/demo/cassette.jsonl}
     LLM_MAX_RETRIES:
     LLM_TIMEOUT_S:
     LLM_FALLBACK_PROVIDER:
