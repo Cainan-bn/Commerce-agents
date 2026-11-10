@@ -154,6 +154,7 @@ def _build(env: Mapping[str, str], model_var: str) -> LLMProvider:
             workdir=_opencode_workdir(env),
             timeout=_env_number(env, "LLM_OPENCODE_TIMEOUT_S", float, 180.0),
             max_concurrency=int(_env_number(env, "LLM_OPENCODE_MAX_CONCURRENCY", int, 4)),
+            max_retries=_env_retries(env, 2),
         )
     if provider == "openai-compatible":
         if not env.get("LLM_API_KEY"):
@@ -161,7 +162,11 @@ def _build(env: Mapping[str, str], model_var: str) -> LLMProvider:
         if not model:
             raise ValueError(f"{model_var} é obrigatório")
         return OpenAICompatibleProvider(
-            env.get("LLM_BASE_URL") or DEFAULT_BASE_URL, env["LLM_API_KEY"], model
+            env.get("LLM_BASE_URL") or DEFAULT_BASE_URL,
+            env["LLM_API_KEY"],
+            model,
+            timeout=_env_number(env, "LLM_TIMEOUT_S", float, 60.0),
+            max_retries=_env_retries(env, 3),
         )
     raise ValueError(f"LLM_PROVIDER inválido: {provider!r} (use opencode-cli ou openai-compatible)")
 
@@ -178,6 +183,20 @@ def _env_number(
         raise ValueError(f"{name} inválido: {raw!r}") from None
     if value <= 0:
         raise ValueError(f"{name} deve ser > 0: {raw!r}")
+    return value
+
+
+def _env_retries(env: Mapping[str, str], default: int) -> int:
+    """`LLM_MAX_RETRIES`: inteiro >= 0 (zero desliga as novas tentativas, ADR 0019)."""
+    raw = env.get("LLM_MAX_RETRIES")
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ValueError(f"LLM_MAX_RETRIES inválido: {raw!r}") from None
+    if value < 0:
+        raise ValueError(f"LLM_MAX_RETRIES deve ser >= 0: {raw!r}")
     return value
 
 

@@ -25,7 +25,14 @@ CircuitState = Literal["closed", "open", "half_open"]
 PRIMARY_NAME = "primario"
 FALLBACK_NAME = "secundario"
 # Variáveis do primário que o secundário recebe de `LLM_FALLBACK_*` (nunca herdadas).
-_PROVIDER_VARS = ("LLM_PROVIDER", "LLM_MODEL", "LLM_BASE_URL", "LLM_API_KEY")
+_PROVIDER_VARS = (
+    "LLM_PROVIDER",
+    "LLM_MODEL",
+    "LLM_BASE_URL",
+    "LLM_API_KEY",
+    "LLM_MAX_RETRIES",
+    "LLM_TIMEOUT_S",
+)
 _REQUIRED_FALLBACK_VARS = ("LLM_FALLBACK_PROVIDER", "LLM_FALLBACK_MODEL")
 
 
@@ -160,10 +167,16 @@ def build_resilient_llm(
     build_provider: BuildProvider = build_provider_from_env,
     clock: Clock = time.monotonic,
 ) -> LLMProvider:
-    """Primário (`LLM_*`) no breaker; com `LLM_FALLBACK_*`, cadeia primário → secundário."""
-    primary = CircuitBreakerLLM(build_provider(env), name=PRIMARY_NAME, clock=clock)
+    """Primário (`LLM_*`) no breaker; com `LLM_FALLBACK_*`, cadeia primário → secundário.
+
+    Com secundário, o primário não repete (ADR 0019): a falha passa logo ao próximo elo e o
+    breaker do primário abre em segundos; só o último elo da cadeia faz novas tentativas.
+    """
     secondary_env = _fallback_env(env)
     if secondary_env is None:
-        return primary
+        return CircuitBreakerLLM(build_provider(env), name=PRIMARY_NAME, clock=clock)
+    primary = CircuitBreakerLLM(
+        build_provider({**env, "LLM_MAX_RETRIES": "0"}), name=PRIMARY_NAME, clock=clock
+    )
     secondary = CircuitBreakerLLM(build_provider(secondary_env), name=FALLBACK_NAME, clock=clock)
     return FallbackLLM([primary, secondary])
