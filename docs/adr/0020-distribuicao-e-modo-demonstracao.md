@@ -65,3 +65,18 @@ Opção 2, com a 3 como alternativa opcional.
 - Negativas: a demonstração só responde bem às mensagens gravadas; mudar prompt exige regravar
   também o cassete da demonstração; a rota `/demo` emite sessão para qualquer cliente do seed, e
   por isso só existe com a flag (teste garante 404 sem ela); não há ambiente público no ar.
+
+## Adendo (2026-11-10): demonstração repetível e falha visível
+
+- O cassete fica em `data/demo/cassette.jsonl` (já copiado para a imagem), gravado por
+  `make demo-record` pelo caminho real (API e worker no host com o opencode) e verificado por
+  `make demo-verify` na stack de produção.
+- Chamada fora do cassete devolve uma resposta final válida do protocolo do especialista com o
+  aviso de demonstração (o grafo não sabe que existe demonstração); no roteador vira `ambiguous` e o
+  cliente recebe um pedido de esclarecimento. Nunca vira handoff.
+- A verificação não confia só no texto: lê `sum(llm_recorded_miss_total)` no Prometheus antes e
+  depois e falha se subir ou se o Prometheus não responder. O smoke do CI usa a mesma verificação.
+- A loja fake guarda estado em memória: conversas que mudam dados funcionam uma vez por subida;
+  `make demo-reset` reinicia a loja. `make demo` e `make demo-verify` sobem de volumes limpos.
+- O token da sessão web vai na query do WebSocket (o navegador não envia header ali) e é mascarado
+  nos logs de acesso (`RedactQueryTokens`).

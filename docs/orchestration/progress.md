@@ -60,3 +60,8 @@
 - Métricas: webhook p95 24,5–89,6 ms até 88 req/s; primeira resposta com LLM p95 3,10 s; queda do provider com 0 mensagens sem resposta (handoff ou fallback); caos com secundário p95 30,85 → 7,32 s após o 09-08; trace único de 8 saltos; custo ~US$ 0,0076 por conversa; 1149 testes unitários.
 - Riscos abertos: worker serial e API num processo (escala na Fase 10); duplicação de envio na janela entre 2xx e ledger; custo medido só no eval.
 - Próxima fase: 10 — deploy e release (imagens, compose de produção, partições e réplicas, README final, v1.0.0).
+
+## Fase 10 — Deploy e release
+- Estado: concluída na branch `fase/10-deploy-e-release`; PR aberto, aguardando CI para merge e tag `v1.0.0`.
+- Entregas: imagem no GHCR com Trivy, compose de produção (jobs, partições, réplicas), modo demonstração com respostas reais gravadas, devcontainer, smoke de ponta a ponta no CI, README como case.
+- Riscos abertos: demonstração limitada ao roteiro gravado; sem ambiente público; backlog pós-v1 em `docs/orchestration/pr/fase-10.md`.
