@@ -105,5 +105,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configurar Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Mesmo build do release (ADR 0020), com cache e sem push.
       - name: Construir imagem Docker
-        run: make build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: commerce-agents:local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy (CRITICAL com correção disponível falha o PR)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.2 \
+            image --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
+            commerce-agents:local
