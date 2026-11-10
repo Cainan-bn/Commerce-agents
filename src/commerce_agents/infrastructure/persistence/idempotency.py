@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from datetime import datetime
+
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -37,3 +39,13 @@ class SqlIdempotencyRegistry:
         )
         async with self._session_factory() as session, session.begin():
             await session.execute(statement)
+
+    async def purge(self, older_than: datetime) -> int:
+        """Apaga registros criados antes do corte; devolve quantos saíram."""
+        statement = (
+            delete(IdempotencyRecordModel)
+            .where(IdempotencyRecordModel.created_at < older_than)
+            .returning(IdempotencyRecordModel.key)
+        )
+        async with self._session_factory() as session, session.begin():
+            return len((await session.execute(statement)).all())

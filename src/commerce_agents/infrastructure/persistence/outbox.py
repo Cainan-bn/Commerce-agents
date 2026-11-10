@@ -9,6 +9,7 @@ from commerce_agents.application.dto.base import StrictModel
 from commerce_agents.application.ports.messaging import EventBus
 from commerce_agents.infrastructure.messaging.topics import decode_event
 from commerce_agents.infrastructure.persistence.models import OutboxModel
+from commerce_agents.infrastructure.telemetry import current_traceparent, outbox_publish_span
 
 
 class SqlOutboxRepository:
@@ -25,6 +26,7 @@ class SqlOutboxRepository:
                     key=key,
                     payload_json=event.model_dump_json(),
                     created_at=datetime.now(UTC),
+                    traceparent=current_traceparent(),
                 )
             )
 
@@ -52,7 +54,8 @@ class SqlOutboxRelay:
                 .all()
             )
             for row in rows:
-                await self._bus.publish(row.topic, row.key, decode_event(row.payload_json))
+                with outbox_publish_span(row.traceparent):
+                    await self._bus.publish(row.topic, row.key, decode_event(row.payload_json))
                 await session.execute(
                     update(OutboxModel)
                     .where(OutboxModel.id == row.id)

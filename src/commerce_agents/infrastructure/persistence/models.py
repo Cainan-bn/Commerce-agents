@@ -258,6 +258,20 @@ class OutboxModel(Base):
     inbound_message_id: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Contexto W3C do turno que gravou a linha; o relay publica com ele (ADR 0017/0018).
+    traceparent: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class DeliveredMessageModel(Base):
+    """Entrega confirmada pelo canal: idempotência durável dos senders (Fase 09)."""
+
+    __tablename__ = "delivered_messages"
+
+    message_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    channel: Mapped[str] = mapped_column(Text, nullable=False)
+    delivered_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 class HandoffModel(Base):

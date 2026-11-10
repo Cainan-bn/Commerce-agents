@@ -38,6 +38,7 @@ class LLMCallRecord(_Record):
     input_tokens: int = 0
     output_tokens: int = 0
     latency_ms: int = 0
+    cost_usd: float | None = None
 
 
 class Trace(_Record):

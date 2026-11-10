@@ -11,7 +11,7 @@ from commerce_agents.application.agents.protocol import first_json_object
 from commerce_agents.application.dto.agents import Intent
 from commerce_agents.application.dto.base import StrictModel
 from commerce_agents.application.dto.views import IntentDecision, LLMMessage
-from commerce_agents.application.ports.llm import LLMProvider
+from commerce_agents.application.ports.llm import LLMProvider, LLMUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +67,11 @@ class LLMIntentRouter:
         self, llm: LLMProvider, on_failure: Callable[[BaseException], None] | None = None
     ) -> None:
         self._llm = llm
-        # Chamado uma vez quando o provider cai (não em resposta inválida); o fallback segue.
+        # Chamado uma vez quando o provider falha (não em resposta inválida).
         self.on_failure = on_failure
 
     async def route(self, text: str) -> IntentDecision:
+        """Resposta inválida vira `ambiguous`; `LLMUnavailableError` propaga (ADR 0017)."""
         messages = [
             LLMMessage(role="system", content=_SYSTEM),
             LLMMessage(role="user", content=wrap_untrusted("cliente", text)),
@@ -82,6 +83,11 @@ class LLMIntentRouter:
             return IntentDecision(intent=decision.intent.value, confidence=decision.confidence)
         except (ValidationError, ValueError, json.JSONDecodeError):
             logger.warning("router: resposta inválida do LLM; usando ambiguous")
+        except LLMUnavailableError as error:
+            logger.warning("router: LLM indisponível; supervisor fará handoff")
+            if self.on_failure is not None:
+                self.on_failure(error)
+            raise
         except Exception as error:
             logger.warning("router: LLM indisponível; usando ambiguous", exc_info=True)
             if self.on_failure is not None:

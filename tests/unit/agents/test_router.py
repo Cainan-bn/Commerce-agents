@@ -1,4 +1,8 @@
-"""LLMIntentRouter (ADR 0013): JSON validado; qualquer falha vira AMBIGUOUS com confiança 0."""
+"""LLMIntentRouter (ADR 0013 e adendo do ADR 0017).
+
+Resposta inválida do LLM vira AMBIGUOUS com confiança 0. Indisponibilidade (`LLMUnavailableError`,
+inclusive circuito aberto) chama `on_failure` e é PROPAGADA ao supervisor, que faz handoff.
+"""
 
 import pytest
 
@@ -15,9 +19,25 @@ def _router(llm: ScriptedLLM, on_failure=None):  # type: ignore[no-untyped-def]
     return LLMIntentRouter(llm, on_failure=on_failure)
 
 
-async def test_queda_do_provider_chama_on_failure_uma_vez_e_devolve_ambiguous():
+@pytest.mark.parametrize(
+    "erro",
+    [LLMUnavailableError("opencode fora do ar"), LLMUnavailableError("circuito aberto: primario")],
+    ids=["provider_fora", "circuito_aberto"],
+)
+async def test_indisponibilidade_chama_on_failure_uma_vez_e_propaga(erro: LLMUnavailableError):
     falhas: list[BaseException] = []
-    erro = LLMUnavailableError("opencode fora do ar")
+    llm = ScriptedLLM([erro])
+
+    with pytest.raises(LLMUnavailableError) as raised:
+        await _router(llm, on_failure=falhas.append).route("pedido")
+
+    assert raised.value is erro
+    assert falhas == [erro]
+
+
+async def test_erro_inesperado_continua_virando_ambiguous_com_on_failure():
+    falhas: list[BaseException] = []
+    erro = RuntimeError("bug no adaptador")
     llm = ScriptedLLM([erro])
 
     decision = await _router(llm, on_failure=falhas.append).route("pedido")
@@ -57,13 +77,11 @@ async def test_sucesso_nunca_chama_on_failure():
     assert decision.intent == "order_status"
 
 
-async def test_on_failure_none_mantem_fallback_sem_erro():
+async def test_on_failure_none_tambem_propaga_a_indisponibilidade():
     llm = ScriptedLLM([LLMUnavailableError("fora do ar")])
 
-    decision = await _router(llm, on_failure=None).route("pedido")
-
-    assert decision.intent == "ambiguous"
-    assert decision.confidence == 0.0
+    with pytest.raises(LLMUnavailableError):
+        await _router(llm, on_failure=None).route("pedido")
 
 
 async def test_json_valido_vira_intent_decision():

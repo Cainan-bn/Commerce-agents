@@ -7,7 +7,7 @@ import secrets
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
-from sqlalchemy import update
+from sqlalchemy import delete, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from commerce_agents.infrastructure.persistence.models import ConfirmationTokenModel
@@ -61,3 +61,19 @@ class SqlConfirmationTokenStore:
         )
         async with self._session_factory() as session, session.begin():
             return (await session.execute(statement)).first() is not None
+
+    async def purge(self, older_than: datetime) -> int:
+        """Apaga tokens usados ou expirados antes do corte; um token ainda válido nunca sai."""
+        expired_before = min(older_than, self._clock())
+        statement = (
+            delete(ConfirmationTokenModel)
+            .where(
+                or_(
+                    ConfirmationTokenModel.used_at < older_than,
+                    ConfirmationTokenModel.expires_at < expired_before,
+                )
+            )
+            .returning(ConfirmationTokenModel.token_hash)
+        )
+        async with self._session_factory() as session, session.begin():
+            return len((await session.execute(statement)).all())

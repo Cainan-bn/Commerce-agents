@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from commerce_agents.application.dto.channels import TOPIC_OUTBOUND, OutboundMessageReady
 from commerce_agents.application.dto.events import InboundMessageReceived
 from commerce_agents.infrastructure.persistence.models import InboundMessageModel, OutboxModel
+from commerce_agents.infrastructure.telemetry import current_traceparent
 
 
 class SqlInboundLedger:
@@ -56,5 +57,6 @@ class SqlInboundLedger:
                         payload_json=reply_json,
                         inbound_message_id=message_id,
                         created_at=at,
+                        traceparent=current_traceparent(),
                     )
                 )

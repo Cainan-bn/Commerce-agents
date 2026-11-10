@@ -8,6 +8,7 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, ConsumerRecord, TopicPa
 
 from commerce_agents.application.dto.base import StrictModel
 from commerce_agents.infrastructure.messaging.topics import decode_event
+from commerce_agents.infrastructure.telemetry import consumer_span, inject_headers
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,10 @@ class KafkaEventBus:
 
     async def publish(self, topic: str, key: str, event: StrictModel) -> None:
         producer = await self._ensure_started()
-        await producer.send_and_wait(topic, event.model_dump_json().encode(), key=key.encode())
+        # traceparent do contexto corrente: o consumidor continua o mesmo trace (ADR 0018).
+        await producer.send_and_wait(
+            topic, event.model_dump_json().encode(), key=key.encode(), headers=inject_headers()
+        )
 
     async def close(self) -> None:
         if self._producer is not None:
@@ -66,7 +70,8 @@ async def consume(
                 await consumer.commit()
                 continue
             try:
-                await handler(event)
+                with consumer_span(topic, record.headers):
+                    await handler(event)
             except Exception:
                 logger.exception(
                     "handler falhou em %s offset %s; será reentregue", topic, record.offset

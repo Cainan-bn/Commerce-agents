@@ -17,6 +17,7 @@ from commerce_agents.infrastructure.messaging.senders import (
 )
 from commerce_agents.infrastructure.messaging.topics import decode_event
 from tests.fakes.clock import BASE_TIME
+from tests.fakes.delivery import InMemoryDeliveryLedger
 
 pytestmark = pytest.mark.unit
 
@@ -52,7 +53,9 @@ async def _no_sleep(_: float) -> None:
 
 async def test_whatsapp_envia_texto_com_bearer_e_e_idempotente():
     seen: list[httpx.Request] = []
-    sender = WhatsAppSender(_client([200, 200], seen), "tok", "PNID", sleep=_no_sleep)
+    sender = WhatsAppSender(
+        _client([200, 200], seen), "tok", "PNID", ledger=InMemoryDeliveryLedger(), sleep=_no_sleep
+    )
 
     await sender.send(_message())
     await sender.send(_message())
@@ -65,7 +68,9 @@ async def test_whatsapp_envia_texto_com_bearer_e_e_idempotente():
 
 async def test_5xx_e_timeout_repetem_ate_conseguir():
     seen: list[httpx.Request] = []
-    sender = InstagramSender(_client([503, 0, 200], seen), "tok", sleep=_no_sleep)
+    sender = InstagramSender(
+        _client([503, 0, 200], seen), "tok", ledger=InMemoryDeliveryLedger(), sleep=_no_sleep
+    )
 
     await sender.send(_message(Channel.INSTAGRAM))
 
@@ -75,7 +80,9 @@ async def test_5xx_e_timeout_repetem_ate_conseguir():
 
 async def test_4xx_nao_repete():
     seen: list[httpx.Request] = []
-    sender = WhatsAppSender(_client([400, 200], seen), "tok", "PNID", sleep=_no_sleep)
+    sender = WhatsAppSender(
+        _client([400, 200], seen), "tok", "PNID", ledger=InMemoryDeliveryLedger(), sleep=_no_sleep
+    )
 
     with pytest.raises(SendRejectedError):
         await sender.send(_message())
@@ -85,7 +92,13 @@ async def test_4xx_nao_repete():
 
 async def test_falha_persistente_levanta_apos_tres_tentativas():
     seen: list[httpx.Request] = []
-    sender = WhatsAppSender(_client([500, 500, 500], seen), "tok", "PNID", sleep=_no_sleep)
+    sender = WhatsAppSender(
+        _client([500, 500, 500], seen),
+        "tok",
+        "PNID",
+        ledger=InMemoryDeliveryLedger(),
+        sleep=_no_sleep,
+    )
 
     with pytest.raises(ConnectionError):
         await sender.send(_message())

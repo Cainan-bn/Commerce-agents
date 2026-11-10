@@ -1,0 +1,25 @@
+# Overlay opcional (ADR 0018): envia ao Langfuse só os spans de LLM, além da config base.
+# Uso: make up-langfuse (docker-compose.langfuse.yml passa os dois --config ao collector).
+# LANGFUSE_OTLP_AUTH = base64("<public_key>:<secret_key>"), só no ambiente do collector
+# (.env, nunca no repositório).
+
+processors:
+  # O trace completo continua indo para o Jaeger pelo pipeline `traces` da base.
+  filter/llm:
+    error_mode: ignore
+    traces:
+      span:
+        - 'name != "llm.complete"'
+
+exporters:
+  otlphttp/langfuse:
+    endpoint: http://langfuse:3000/api/public/otel
+    headers:
+      Authorization: "Basic ${env:LANGFUSE_OTLP_AUTH}"
+
+service:
+  pipelines:
+    traces/langfuse:
+      receivers: [otlp]
+      processors: [filter/llm, batch]
+      exporters: [otlphttp/langfuse]

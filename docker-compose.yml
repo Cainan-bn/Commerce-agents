@@ -1,6 +1,7 @@
 # Stack local de desenvolvimento do CommerceAgents.
 #
-# Serviços contratados: postgres, redis, redpanda, otel-collector, jaeger, langfuse.
+# Serviços contratados: postgres, redis, redpanda, otel-collector, jaeger, langfuse,
+# prometheus e grafana (ADR 0018).
 # Observação (Langfuse v3): além de Postgres e Redis, a linha 3.x exige ClickHouse
 # (traces/observações), S3 compatível (event uploads) e um worker assíncrono.
 # Para manter a stack funcional localmente foram adicionados clickhouse, s3mock e
@@ -76,10 +77,12 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.164.0
     restart: unless-stopped
+    # Exporter do Langfuse é opcional: docker-compose.langfuse.yml (make up-langfuse).
     command: ["--config=file:/etc/otelcol-contrib/config.yaml"]
     ports:
       - "4317:4317"
       - "4318:4318"
+      - "8889:8889"
       - "13133:13133"
     volumes:
       - ./docker/otel/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
@@ -113,6 +116,51 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/-/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-dev-only-change-me}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   # Dependências exigidas pelo Langfuse v3 (não fazem parte dos seis serviços
   # contratados, mas são necessárias para a stack subir saudável).
@@ -253,3 +301,5 @@ volumes:
   redpanda-data:
   clickhouse-data:
   s3mock-data:
+  prometheus-data:
+  grafana-data:

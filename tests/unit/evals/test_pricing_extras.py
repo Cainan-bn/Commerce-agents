@@ -8,13 +8,13 @@ pytestmark = pytest.mark.unit
 
 
 def test_arquivo_padrao_carrega_sem_modelos_inventados():
-    from evals.pricing import load_pricing
+    from commerce_agents.infrastructure.llm.pricing import load_pricing
 
     assert load_pricing() == {}
 
 
 def test_load_pricing_le_a_tabela(tmp_path: Path):
-    from evals.pricing import load_pricing
+    from commerce_agents.infrastructure.llm.pricing import load_pricing
 
     path = tmp_path / "p.yaml"
     path.write_text(
@@ -28,7 +28,7 @@ def test_load_pricing_le_a_tabela(tmp_path: Path):
 
 
 def test_load_pricing_arquivo_vazio(tmp_path: Path):
-    from evals.pricing import load_pricing
+    from commerce_agents.infrastructure.llm.pricing import load_pricing
 
     path = tmp_path / "p.yaml"
     path.write_text("", encoding="utf-8")

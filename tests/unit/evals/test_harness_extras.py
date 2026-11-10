@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from commerce_agents.application.dto.views import LLMResult
 from tests.fakes.evals import make_eval_deps
 from tests.fakes.traces import scenario
 
@@ -108,14 +109,15 @@ async def test_irreversivel_nao_esperado_nem_proibido_fica_sem_confirmacao():
     assert deps.tools.status["O000014"] == "paid"
 
 
-async def test_custo_vem_do_provider_quando_ele_acumula():
+async def test_custo_vem_do_cost_usd_de_cada_chamada():
     deps = make_eval_deps([_final("ok")])
-    deps.llm.total_cost_usd = 1.0  # type: ignore[attr-defined]
+    # Acumulador legado do provider é ignorado: o custo vem do `LLMResult.cost_usd`.
+    deps.llm.total_cost_usd = 99.0  # type: ignore[attr-defined]
     original = deps.llm.complete
 
     async def complete(messages: Any, *, max_tokens: int) -> Any:
-        deps.llm.total_cost_usd += 0.25  # type: ignore[attr-defined]
-        return await original(messages, max_tokens=max_tokens)
+        result = await original(messages, max_tokens=max_tokens)
+        return LLMResult(**result.model_dump(exclude={"cost_usd"}), cost_usd=0.25)
 
     deps.llm.complete = complete
     scn = scenario()
@@ -124,6 +126,14 @@ async def test_custo_vem_do_provider_quando_ele_acumula():
     trace = await _run(scn, deps)
 
     assert trace.cost_usd == pytest.approx(0.25)
+
+
+def test_harness_nao_le_mais_o_acumulador_do_provider():
+    from pathlib import Path
+
+    import evals.harness
+
+    assert "total_cost_usd" not in Path(evals.harness.__file__).read_text(encoding="utf-8")
 
 
 async def test_sem_preco_conhecido_o_custo_e_none():

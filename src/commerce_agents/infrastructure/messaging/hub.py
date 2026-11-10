@@ -5,6 +5,7 @@ from typing import Any, Protocol
 
 from commerce_agents.application.dto.channels import OutboundMessageReady
 from commerce_agents.application.dto.events import HandoffRequested
+from commerce_agents.infrastructure.telemetry import channel_send_span
 
 logger = logging.getLogger(__name__)
 
@@ -60,16 +61,17 @@ class PanelHub:
         await self._send_all(self._panel, event)
 
     async def send_to_conversation(self, message: OutboundMessageReady) -> None:
-        await self._send_all(
-            self._conversations.get(message.conversation_id, set()),
-            {
-                "type": "message",
-                "message_id": message.message_id,
-                "text": message.text,
-                "source": message.source,
-                "citations": list(message.citations),
-            },
-        )
+        with channel_send_span(message.conversation_id, message.channel.value, message.message_id):
+            await self._send_all(
+                self._conversations.get(message.conversation_id, set()),
+                {
+                    "type": "message",
+                    "message_id": message.message_id,
+                    "text": message.text,
+                    "source": message.source,
+                    "citations": list(message.citations),
+                },
+            )
 
     async def send(self, message: OutboundMessageReady) -> None:
         """`ChannelSender` do canal web."""

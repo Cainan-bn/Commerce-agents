@@ -18,6 +18,7 @@ from commerce_agents.application.ports.llm import (
     LLMProvider,
     LLMUnavailableError,
 )
+from commerce_agents.infrastructure.llm.pricing import PriceTable, estimate_cost_usd, load_pricing
 
 __all__ = [
     "LLMBadRequestError",
@@ -52,6 +53,7 @@ class OpenAICompatibleProvider:
         max_retries: int = 3,
         client: httpx.AsyncClient | None = None,
         sleep: Sleep = asyncio.sleep,
+        pricing: PriceTable | None = None,
     ) -> None:
         if not api_key:
             raise ValueError("LLM_API_KEY é obrigatório para o provider openai-compatible")
@@ -63,6 +65,7 @@ class OpenAICompatibleProvider:
         self._max_retries = max_retries
         self._client = client or httpx.AsyncClient(timeout=timeout)
         self._sleep = sleep
+        self._pricing = load_pricing() if pricing is None else pricing
 
     def __repr__(self) -> str:
         return f"OpenAICompatibleProvider(url={self._url!r}, model={self.model!r})"
@@ -109,11 +112,15 @@ class OpenAICompatibleProvider:
             body = response.json()
             content = body["choices"][0]["message"]["content"]
             usage = body.get("usage") or {}
+            model = str(body.get("model") or self.model)
+            input_tokens = int(usage.get("prompt_tokens", 0))
+            output_tokens = int(usage.get("completion_tokens", 0))
             return LLMResult(
                 content=str(content),
-                model=str(body.get("model") or self.model),
-                input_tokens=int(usage.get("prompt_tokens", 0)),
-                output_tokens=int(usage.get("completion_tokens", 0)),
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=estimate_cost_usd(model, input_tokens, output_tokens, self._pricing),
             )
         except (ValueError, KeyError, IndexError, TypeError):
             return None
@@ -147,6 +154,7 @@ def _build(env: Mapping[str, str], model_var: str) -> LLMProvider:
             workdir=_opencode_workdir(env),
             timeout=_env_number(env, "LLM_OPENCODE_TIMEOUT_S", float, 180.0),
             max_concurrency=int(_env_number(env, "LLM_OPENCODE_MAX_CONCURRENCY", int, 4)),
+            max_retries=_env_retries(env, 2),
         )
     if provider == "openai-compatible":
         if not env.get("LLM_API_KEY"):
@@ -154,7 +162,11 @@ def _build(env: Mapping[str, str], model_var: str) -> LLMProvider:
         if not model:
             raise ValueError(f"{model_var} é obrigatório")
         return OpenAICompatibleProvider(
-            env.get("LLM_BASE_URL") or DEFAULT_BASE_URL, env["LLM_API_KEY"], model
+            env.get("LLM_BASE_URL") or DEFAULT_BASE_URL,
+            env["LLM_API_KEY"],
+            model,
+            timeout=_env_number(env, "LLM_TIMEOUT_S", float, 60.0),
+            max_retries=_env_retries(env, 3),
         )
     raise ValueError(f"LLM_PROVIDER inválido: {provider!r} (use opencode-cli ou openai-compatible)")
 
@@ -171,6 +183,20 @@ def _env_number(
         raise ValueError(f"{name} inválido: {raw!r}") from None
     if value <= 0:
         raise ValueError(f"{name} deve ser > 0: {raw!r}")
+    return value
+
+
+def _env_retries(env: Mapping[str, str], default: int) -> int:
+    """`LLM_MAX_RETRIES`: inteiro >= 0 (zero desliga as novas tentativas, ADR 0019)."""
+    raw = env.get("LLM_MAX_RETRIES")
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ValueError(f"LLM_MAX_RETRIES inválido: {raw!r}") from None
+    if value < 0:
+        raise ValueError(f"LLM_MAX_RETRIES deve ser >= 0: {raw!r}")
     return value
 
 

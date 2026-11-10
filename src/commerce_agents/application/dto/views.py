@@ -61,6 +61,10 @@ class LLMResult(StrictModel):
     model: str
     input_tokens: int = Field(ge=0)
     output_tokens: int = Field(ge=0)
+    # Elo que respondeu (ADR 0017): preenchido pelo breaker/fallback; `None` sem resiliência.
+    provider: str | None = None
+    # Custo desta chamada em USD; `None` = desconhecido (nunca um 0 inventado).
+    cost_usd: float | None = Field(default=None, ge=0.0)
 
 
 class IntentDecision(StrictModel):

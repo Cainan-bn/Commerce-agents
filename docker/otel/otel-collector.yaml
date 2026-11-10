@@ -1,3 +1,5 @@
+# Config base (ADR 0018): traces no Jaeger e métricas no Prometheus. Exporters opcionais
+# entram por overlay (--config adicional), sem tocar neste arquivo.
 receivers:
   otlp:
     protocols:
@@ -14,6 +16,11 @@ exporters:
     endpoint: jaeger:4317
     tls:
       insecure: true
+  # Métricas OTel expostas para o Prometheus raspar (job otel-collector).
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
   debug:
     verbosity: basic
 
@@ -28,6 +35,10 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlp/jaeger]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
   telemetry:
     logs:
       level: info

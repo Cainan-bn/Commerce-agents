@@ -50,7 +50,13 @@
 - Próxima fase: 08 — evals e ajuste de prompts (precisa de provider de LLM e chave: decisão do usuário).
 
 ## Fase 08 — Evals e ajuste de prompts
-- Estado: concluída na branch `fase/08-evals-e-ajuste-de-prompts`; PR aberto, aguardando CI para merge.
+- Estado: concluída e mergeada (PR #9).
 - Métricas: dev `scenario_pass` 51,9% → 70,4% (54 cenários), `tool_selection` 98,1%, gates de irreversíveis e `leaks` 100%; holdout 33,3% (vocabulário corrigido, gates 100%); juiz calibrado 92,3%; gate de CI por replay (~17 s); 1004 testes unitários.
 - Riscos abertos: lacunas de pós-venda e de recusa vistas no holdout; contrato AMB; instabilidade do opencode; sem provider de produção.
 - Próxima fase: 09 — resiliência e observabilidade (circuit breaker do provider, carga k6, purga de tokens, idempotência durável dos senders).
+
+## Fase 09 — Resiliência, observabilidade e carga
+- Estado: concluída na branch `fase/09-resiliencia-observabilidade-carga`; PR aberto, aguardando CI para merge.
+- Métricas: webhook p95 24,5–89,6 ms até 88 req/s; primeira resposta com LLM p95 3,10 s; queda do provider com 0 mensagens sem resposta (handoff ou fallback); caos com secundário p95 30,85 → 7,32 s após o 09-08; trace único de 8 saltos; custo ~US$ 0,0076 por conversa; 1149 testes unitários.
+- Riscos abertos: worker serial e API num processo (escala na Fase 10); duplicação de envio na janela entre 2xx e ledger; custo medido só no eval.
+- Próxima fase: 10 — deploy e release (imagens, compose de produção, partições e réplicas, README final, v1.0.0).

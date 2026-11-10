@@ -8,6 +8,7 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Protocol
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -34,7 +35,7 @@ from commerce_agents.infrastructure.agents.handlers import make_search_policies_
 from commerce_agents.infrastructure.agents.memory import SqlCustomerMemory
 from commerce_agents.infrastructure.agents.router import LLMIntentRouter
 from commerce_agents.infrastructure.agents.service import ConversationService
-from commerce_agents.infrastructure.llm.openai_compatible import build_provider_from_env
+from commerce_agents.infrastructure.llm.resilience import build_resilient_llm
 from commerce_agents.infrastructure.mcp.executor import ToolExecutor
 from commerce_agents.infrastructure.messaging.bus import KafkaEventBus, consume
 from commerce_agents.infrastructure.messaging.hub import PanelHub
@@ -48,6 +49,7 @@ from commerce_agents.infrastructure.persistence.database import (
     create_engine,
     create_session_factory,
 )
+from commerce_agents.infrastructure.persistence.delivery_ledger import SqlDeliveryLedger
 from commerce_agents.infrastructure.persistence.handoffs import SqlHandoffRepository
 from commerce_agents.infrastructure.persistence.idempotency import SqlIdempotencyRegistry
 from commerce_agents.infrastructure.persistence.identity import SqlIdentityResolver
@@ -58,12 +60,15 @@ from commerce_agents.infrastructure.persistence.repositories import SqlConversat
 from commerce_agents.infrastructure.persistence.token_store import SqlConfirmationTokenStore
 from commerce_agents.infrastructure.rag.embedder import FastEmbedEmbedder
 from commerce_agents.infrastructure.rag.retriever import HybridPolicyRetriever
+from commerce_agents.infrastructure.telemetry import TracedLLM
 from commerce_agents.interfaces.api import ApiDeps
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_KAFKA_BOOTSTRAP = "localhost:9092"
 DEFAULT_STORE_BASE_URL = "http://localhost:8001"
+DEFAULT_PURGE_INTERVAL_S = 3600
+DEFAULT_RETENTION_DAYS = 30
 
 
 def utcnow() -> datetime:
@@ -85,6 +90,8 @@ class Settings:
     instagram_access_token: str
     web_session_secret: str
     panel_token: str
+    purge_interval_s: int = DEFAULT_PURGE_INTERVAL_S
+    retention_days: int = DEFAULT_RETENTION_DAYS
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
@@ -101,6 +108,8 @@ class Settings:
             instagram_access_token=env.get("INSTAGRAM_ACCESS_TOKEN", ""),
             web_session_secret=env.get("WEB_SESSION_SECRET", ""),
             panel_token=env.get("PANEL_TOKEN", ""),
+            purge_interval_s=int(env.get("PURGE_INTERVAL_S", DEFAULT_PURGE_INTERVAL_S)),
+            retention_days=int(env.get("RETENTION_DAYS", DEFAULT_RETENTION_DAYS)),
         )
 
 
@@ -112,10 +121,15 @@ class UnconfiguredLLM:
 
 
 def llm_from_env(env: Mapping[str, str]) -> LLMProvider:
-    """Provider de `LLM_*`; sem `LLM_MODEL`, o placeholder cuja falha o grafo trata."""
+    """Provider de `LLM_*` com breaker e fallback (ADR 0017); sem `LLM_MODEL`, o placeholder."""
     if not env.get("LLM_MODEL"):
         return UnconfiguredLLM()
-    return build_provider_from_env(env)
+    return build_resilient_llm(env)
+
+
+def build_router(llm: LLMProvider) -> LLMIntentRouter:
+    """Roteador sobre o provider instrumentado: spans, métricas e custo como os agentes."""
+    return LLMIntentRouter(TracedLLM(llm))
 
 
 class BusHandoffNotifier:
@@ -128,6 +142,12 @@ class BusHandoffNotifier:
         await self._bus.publish(TOPIC_HANDOFF, request.conversation_id, request)
 
 
+class Purger(Protocol):
+    """Apaga registros anteriores ao corte e devolve quantos saíram."""
+
+    async def purge(self, older_than: datetime) -> int: ...
+
+
 @dataclass
 class WorkerRuntime:
     engine: AsyncEngine
@@ -137,6 +157,7 @@ class WorkerRuntime:
     handle_inbound: HandleInboundMessage
     relay: SqlOutboxRelay
     sender: ChannelRouter
+    purgers: tuple[Purger, ...]
 
     async def close(self) -> None:
         await self.bus.close()
@@ -175,10 +196,12 @@ async def build_worker(settings: Settings) -> WorkerRuntime:
 
     http = httpx.AsyncClient(base_url=settings.store_base_url)
     retriever = HybridPolicyRetriever(factory, FastEmbedEmbedder())
+    tokens = SqlConfirmationTokenStore(factory, clock=utcnow)
+    idempotency = SqlIdempotencyRegistry(factory)
     executor = ToolExecutor(
         client=http,
-        tokens=SqlConfirmationTokenStore(factory, clock=utcnow),
-        idempotency=SqlIdempotencyRegistry(factory),
+        tokens=tokens,
+        idempotency=idempotency,
         internal_handlers={"search_policies": make_search_policies_handler(retriever)},
     )
     llm = llm_from_env(os.environ)
@@ -186,9 +209,9 @@ async def build_worker(settings: Settings) -> WorkerRuntime:
     graph = build_graph(
         GraphDeps(
             llm=llm,
-            router=LLMIntentRouter(llm),
+            router=build_router(llm),
             tools=executor,
-            tokens=SqlConfirmationTokenStore(factory, clock=utcnow),
+            tokens=tokens,
             publish_event=publish_event,
             clock=utcnow,
             memory=SqlCustomerMemory(factory),
@@ -197,6 +220,7 @@ async def build_worker(settings: Settings) -> WorkerRuntime:
         checkpointer=checkpointer,
     )
     channel_http = httpx.AsyncClient(timeout=10.0)
+    deliveries = SqlDeliveryLedger(factory)
     return WorkerRuntime(
         engine=engine,
         bus=bus,
@@ -217,10 +241,14 @@ async def build_worker(settings: Settings) -> WorkerRuntime:
                     channel_http,
                     settings.whatsapp_access_token,
                     settings.whatsapp_phone_number_id,
+                    ledger=deliveries,
                 ),
-                Channel.INSTAGRAM: InstagramSender(channel_http, settings.instagram_access_token),
+                Channel.INSTAGRAM: InstagramSender(
+                    channel_http, settings.instagram_access_token, ledger=deliveries
+                ),
             }
         ),
+        purgers=(tokens, idempotency, deliveries),
     )
 
 
