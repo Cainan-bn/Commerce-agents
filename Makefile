@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor setup up up-langfuse down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick eval-holdout eval-record eval-ci load load-caos-fallback demo-record demo-verify demo demo-down run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
+.PHONY: help doctor setup up up-langfuse down seed migrate lint build test test-unit test-integration test-e2e eval eval-quick eval-holdout eval-record eval-ci load load-caos-fallback demo-record demo-verify demo demo-down demo-reset run mock seed-db ingest-policies eval-rag test-panel run-api run-worker
 
 SEED_OUT ?= data/seed
 DEMO_CASSETTE ?= data/demo/cassette.jsonl
@@ -168,12 +168,13 @@ demo-record: ## Grava o cassete da demo pelo caminho real (loja fake, API e work
 
 demo-verify: ## Reproduz o cassete da demo na stack de producao, de volumes limpos (DEMO_KEEP=1 mantem no ar)
 	@test -f $(DEMO_CASSETTE) || { echo "[demo-verify] $(DEMO_CASSETTE) ausente: rode make demo-record"; exit 1; }
-	@$(DEMO_ENV); \
+	@$(DEMO_ENV) OTEL_METRIC_EXPORT_INTERVAL=$${OTEL_METRIC_EXPORT_INTERVAL:-5000}; \
 	$(PROD_COMPOSE) down -v --remove-orphans; \
 	$(PROD_COMPOSE) up -d --build; \
 	trap '[ "$${DEMO_KEEP:-0}" = 1 ] || $(PROD_COMPOSE) down -v' EXIT; \
 	for i in $$(seq 1 120); do curl -sf $(DEMO_API_URL)/health > /dev/null && break; sleep 2; done; \
-	uv run python scripts/demo_drive.py --api-url $(DEMO_API_URL) --timeout 120 --expect-no-miss
+	uv run python scripts/demo_drive.py --api-url $(DEMO_API_URL) --timeout 120 --expect-no-miss \
+		--metrics-settle-s 30
 
 demo: ## Sobe a demonstracao local (LLM gravado, sem chave de API) e imprime as URLs; derrube com make demo-down
 	@test -f $(DEMO_CASSETTE) || { echo "[demo] $(DEMO_CASSETTE) ausente: rode make demo-record"; exit 1; }
@@ -194,6 +195,9 @@ demo: ## Sobe a demonstracao local (LLM gravado, sem chave de API) e imprime as 
 
 demo-down: ## Derruba a demonstracao local e apaga os volumes
 	@$(DEMO_ENV); $(PROD_COMPOSE) down -v --remove-orphans
+
+demo-reset: ## Reinicia so a loja fake da demonstracao (pedidos voltam ao seed; ex.: repetir o cancelamento)
+	@$(DEMO_ENV); $(PROD_COMPOSE) restart mock-store
 
 run-api: ## Sobe a API de canais e o painel (porta 8000; requer Postgres e Redpanda do compose)
 	@set -a; \

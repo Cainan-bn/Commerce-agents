@@ -44,6 +44,7 @@ x-app: &app
     INSTAGRAM_ACCESS_TOKEN:
     OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     OTEL_SERVICE_NAME: commerce-agents
+    OTEL_METRIC_EXPORT_INTERVAL:
     LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
 x-job: &job
