@@ -29,3 +29,7 @@ Opção 2, em LangGraph. O port `LLMProvider` não muda (texto), o que torna os 
 
 - Positivas: segurança independente do LLM, testável sem LLM real, métricas por nó.
 - Negativas: protocolo JSON próprio (mais prompt e validação) em vez de function calling nativo; revisitar se o provider oferecer saída estruturada confiável.
+
+## Adendo (2026-11-10, Fase 09)
+
+- Na checagem de posse, erro `upstream_*` (loja fora do ar ou em timeout) é propagado em vez de virar `not_found`: a queda da loja é igual para qualquer pedido e não revela o dono; `not_found` segue uniforme para pedido inexistente ou de outro cliente.

@@ -135,10 +135,39 @@ async def test_pedido_inexistente_e_de_outro_cliente_sao_indistinguiveis():
     assert (other.code, other.message) == (missing.code, missing.message)
 
 
-async def test_falha_na_leitura_de_posse_vira_not_found():
+@pytest.mark.parametrize(
+    "code",
+    [
+        ToolErrorCode.UPSTREAM_UNAVAILABLE,
+        ToolErrorCode.UPSTREAM_TIMEOUT,
+        ToolErrorCode.UPSTREAM_ERROR,
+    ],
+)
+async def test_queda_da_loja_na_leitura_de_posse_e_propagada_sem_executar(code: ToolErrorCode):
+    # Adendo ao ADR 0013: a queda é igual para qualquer pedido; não revela o dono.
+    inner = FakeInner(orders={}, read_error=ToolError(code=code, message="loja fora"))
+    scoped = _scoped(inner)
+
+    result = await scoped.invoke(
+        "Pedidos",
+        "cancel_order",
+        {
+            "order_id": "O000014",
+            "conversation_id": "c",
+            "confirmation_token": "t",
+            "idempotency_key": "idem-escopo-01",
+        },
+    )
+
+    assert isinstance(result, ToolError)
+    assert result.code is code
+    assert _real_calls(inner, "cancel_order") == []
+
+
+async def test_erro_de_leitura_que_nao_e_da_loja_vira_not_found():
     inner = FakeInner(
         orders={},
-        read_error=ToolError(code=ToolErrorCode.UPSTREAM_UNAVAILABLE, message="loja fora"),
+        read_error=ToolError(code=ToolErrorCode.INVALID_ARGUMENT, message="argumento inválido"),
     )
     scoped = _scoped(inner)
 
