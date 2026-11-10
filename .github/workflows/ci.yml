@@ -123,3 +123,53 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.2 \
             image --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
             commerce-agents:local
+
+  smoke:
+    name: Smoke da demonstracao (compose de producao)
+    runs-on: ubuntu-latest
+    needs: build
+    # Valores so de demonstracao (o compose exige os obrigatorios com :?); nunca segredos reais.
+    env:
+      APP_IMAGE: commerce-agents:local
+      POSTGRES_PASSWORD: demo-ci  # pragma: allowlist secret
+      WEB_SESSION_SECRET: demo-ci  # pragma: allowlist secret
+      PANEL_TOKEN: demo-ci  # pragma: allowlist secret
+      GRAFANA_ADMIN_PASSWORD: demo-ci  # pragma: allowlist secret
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # O cassete chega com make demo-record (ADR 0020); sem ele, o smoke pula com aviso.
+      - name: Cassete da demonstracao presente?
+        id: cassette
+        run: |
+          if [ -f data/demo/cassette.jsonl ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Smoke da demonstracao pulado::data/demo/cassette.jsonl ainda nao existe; grave com make demo-record."
+          fi
+
+      - name: Configurar uv (com cache)
+        if: steps.cassette.outputs.present == 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sincronizar dependencias
+        if: steps.cassette.outputs.present == 'true'
+        run: uv sync --frozen
+
+      # Sobe docker-compose.prod.yml com LLM_PROVIDER=recorded e conversa pelo canal web real;
+      # falha se alguma mensagem ficar sem resposta ou sair do roteiro gravado.
+      - name: Rodar a demonstracao gravada de ponta a ponta
+        if: steps.cassette.outputs.present == 'true'
+        run: make demo-verify DEMO_KEEP=1
+
+      - name: Logs da stack em caso de falha
+        if: failure() && steps.cassette.outputs.present == 'true'
+        run: docker compose -f docker-compose.prod.yml logs --no-color --tail 200
+
+      - name: Derrubar a stack
+        if: always() && steps.cassette.outputs.present == 'true'
+        run: docker compose -f docker-compose.prod.yml down -v
